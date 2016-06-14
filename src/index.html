@@ -6,16 +6,18 @@
     <script src="snap.svg-min.js" />
     <script src="seedrandom.min.js"></script>
     <script src="rng.js"></script>
+    <script src="5x8.js"></script>
     <script>
 
 var s1;
+var s2;
 
-var rows = 5;
-var cols = 5;
+var rows = 10;
+var cols = 30;
 var charh = 8;
 var charw = 5;
 
-function create_grid(s,p,w,h,zoom)
+function create_grid(s,p,w,h)
 {
     // var g = [];
     // g[w*h-1]=0; //preallocate it, I guess?
@@ -27,14 +29,29 @@ function create_grid(s,p,w,h,zoom)
     // 	}
     // }
 
-    g = { bits: [], rects: [], h: h, w: w, s: s, zoom: zoom, group: s.group(), pattern: p};
+    g = { bits: [], h: h, w: w, s: s, group: s.group(), pattern: p, mask: null,
+	  background_rect: null};
 
     for(i = w*h-1; i >= 0; i--)
     {
-	g.bits[i] = (i%2==0? true:false);
+	g.bits[i] = false;
     }
 
+    //the background is the pattern and the foreground blocks it out where we have false bits
+    var r = g.s.rect(0,0,g.w,g.h);
+    r.attr({ fill: g.pattern });
+    g.background_rect = r;
+
     redraw_grid(g);
+}
+
+function path_rect(x,y,w,h)
+{
+    return "M "+x+" "+y+
+	"L "+(x+w)+" "+y+
+	"L "+(x+w)+" "+(y+h)+
+	"L "+x+" "+(y+h)+
+	"L "+x+" "+y;
 }
 
 function redraw_grid(g)
@@ -43,18 +60,13 @@ function redraw_grid(g)
     //bitmap and scaling it in the SVG but this seems flaky cross browsers. At least one example of doing
     //so didn't work right in my browser (google chrome 49 on linux).
 
-    
-    for(i = 0; i < g.rects; i++)
+    if(g.mask)
     {
-	g.rects[i].remove();
+	g.mask.remove();
     }
-    g.rects = [];
 
-    //the background is the pattern and the foreground blocks it out where we have false bits
-    var r = g.s.rect(0,0,g.w,g.h);
-    r.attr({ fill: g.pattern });
-    g.group.add(r);
-    
+    var path="";
+
     var empty_cells_in_line=0;
     var empty_lines=0;
 
@@ -63,18 +75,12 @@ function redraw_grid(g)
 	    //draw last rectangle
 	    if(empty_lines > 0)
 	    {
-		var r = g.s.rect(0,y-empty_lines,g.w,empty_lines);
-		//alert(empty_lines)
-		g.rects.push(r);
-		g.group.add(r);
+		path += (path_rect(0,y-empty_lines,g.w,empty_lines));
 	    }
 	    //draw the current set of empty cells
 	    if(empty_cells_in_line != 0)
 	    {
-		var r = g.s.rect(x-empty_cells_in_line,y,empty_cells_in_line,1);
-		//alert(empty_cells_in_line)
-		g.rects.push(r);
-		g.group.add(r);
+		path += (path_rect(x-empty_cells_in_line,y,empty_cells_in_line,1));
 	    }
 	};
 
@@ -102,7 +108,7 @@ function redraw_grid(g)
 	}
 	else
 	{
-	    //draw the falseness
+	    //draw the falseness for the previous empty lines
 	    create_rects_for_false_bits_fn(empty_lines, empty_cells_in_line);
 	    empty_lines = 0;
 	    empty_cells_in_line = 0;
@@ -111,23 +117,95 @@ function redraw_grid(g)
 
     create_rects_for_false_bits_fn(empty_lines,empty_cells_in_line);
 
-    var m = (new Snap.matrix()).scale(g.zoom);
-//    alert(m);
-    g.group.transform(m);
+    g.mask = g.s.path(path).attr({ fill: "#EEEEEE" });
 
+    var matrix = (new Snap.matrix()).scale(g.s.attr().width/g.w,g.s.attr().height/g.h)
+    g.mask.transform(matrix);
+    g.background_rect.transform(matrix);
 }
 
 window.onload = function()
 {
     s1 = Snap("#s1");
-    p1 = s1.select("#fillpat1");
-    g1 = create_grid(s1,p1, cols*charw,rows*charh,4);
+    var p1 = s1.select("#fillpat1");
+    var g1 = create_grid(s1,p1, cols*charw,rows*charh);
+
+    s2 = Snap("#s2");
+    var p2 = s1.select("#fillpat2");
+    var g2 = create_grid(s2,p2, cols*charw,rows*charh);
 }
 
 function resizesvg()
 {
     s1.attr({width: 300, height: 300});
 }
+
+var message = { text: "",
+		bits: [],
+		force_wrap: 30
+	      };
+
+var font = console_font_5x8;
+
+function set_message_txt(t)
+{
+    //assumes 5x8 and writes t into bits
+    message.text=t;
+    message.bits = [];
+
+    var row = 0;
+    var col = 0;
+    for(var i = 0; i < t.length(); i++)
+    {
+	//go through each line of character, horizontally
+	
+	// ex:
+	// /* code=65, hex=0x41, ascii="A"
+	//  */
+	// 0x00,  /* 00000 */
+	// 0x00,  /* 00000 */
+	// 0x60,  /* 01100 */
+	// 0x90,  /* 10010 */
+	// 0xF0,  /* 11110 */
+	// 0x90,  /* 10010 */
+	// 0x90,  /* 10010 */
+	// 0x00,  /* 00000 */
+
+	var c = t.charCodeAt(i);
+	if(c == 10) //newline
+	{
+	    row = 0;
+	    col++;
+	    continue;
+	}
+	
+	var cr = c*charh;
+
+	var bitx = col * charw;
+	var bity = row * charh;
+	for(var bitline = 0; bitline < charh; bitline++)
+	{
+	    for(var bit = 0; bit < charw; bit++)
+	    {
+		var on = (font[bitline] >> (7 - bit));
+		message.bits[bitx + bity * message.force_wrap * charw] = on;
+	    }
+	}
+
+	row++;
+	if(row > message.force_wrap)
+	{
+	    row = 0;
+	    col++;
+	}
+    }
+}
+
+function update_svgs()
+{
+    
+}
+
 
 </script>
     
@@ -154,7 +232,8 @@ function resizesvg()
     <circle cx="2" cy="2" r="2" fill= "#000000" />
     </pattern>
     </svg>
-    <svg width="200" height="200" id="s2">
+    <br>Encoded Page 2
+    <svg width="700" height="500" id="s2">
     <defs>
     <pattern id="fillpat2" x=".1" y=".1" width=".4" height=".4" patternUnits="userSpaceOnUse">
     <rect width="0.4" height="0.4" fill= "#000000" />
