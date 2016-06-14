@@ -1,0 +1,172 @@
+    <!doctype html>
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <title>Paper based OTP</title>
+    <script src="snap.svg-min.js" />
+    <script src="seedrandom.min.js"></script>
+    <script src="rng.js"></script>
+    <script>
+
+var s1;
+
+var rows = 5;
+var cols = 5;
+var charh = 8;
+var charw = 5;
+
+function create_grid(s,p,w,h,zoom)
+{
+    // var g = [];
+    // g[w*h-1]=0; //preallocate it, I guess?
+    
+    // for(y = 0; y != h; y++) {
+    // 	for(x = 0; x != w; x++) {
+    // 	    g[x+y*w] = r = s.rect(x,y,x+1,y+1);
+    // 	    r.attr({ fill: "#FFFFFF" });
+    // 	}
+    // }
+
+    g = { bits: [], rects: [], h: h, w: w, s: s, zoom: zoom, group: s.group(), pattern: p};
+
+    for(i = w*h-1; i >= 0; i--)
+    {
+	g.bits[i] = (i%2==0? true:false);
+    }
+
+    redraw_grid(g);
+}
+
+function redraw_grid(g)
+{
+    //we use tiny little boxes to black out the pixels. I was thinking of using a dynamically created
+    //bitmap and scaling it in the SVG but this seems flaky cross browsers. At least one example of doing
+    //so didn't work right in my browser (google chrome 49 on linux).
+
+    
+    for(i = 0; i < g.rects; i++)
+    {
+	g.rects[i].remove();
+    }
+    g.rects = [];
+
+    //the background is the pattern and the foreground blocks it out where we have false bits
+    var r = g.s.rect(0,0,g.w,g.h);
+    r.attr({ fill: g.pattern });
+    g.group.add(r);
+    
+    var empty_cells_in_line=0;
+    var empty_lines=0;
+
+    var create_rects_for_false_bits_fn =
+	function(empty_lines, empty_cells_in_line) {
+	    //draw last rectangle
+	    if(empty_lines > 0)
+	    {
+		var r = g.s.rect(0,y-empty_lines,g.w,empty_lines);
+		//alert(empty_lines)
+		g.rects.push(r);
+		g.group.add(r);
+	    }
+	    //draw the current set of empty cells
+	    if(empty_cells_in_line != 0)
+	    {
+		var r = g.s.rect(x-empty_cells_in_line,y,empty_cells_in_line,1);
+		//alert(empty_cells_in_line)
+		g.rects.push(r);
+		g.group.add(r);
+	    }
+	};
+
+    for(y=0;y<g.h;y++)
+    {
+	for(x=0;x<g.w;x++)
+	{
+	    if(g.bits[y*g.h+x])
+	    {
+		create_rects_for_false_bits_fn(empty_lines, empty_cells_in_line);
+		empty_lines = 0;
+		empty_cells_in_line = 0;
+	    }
+	    else
+	    {
+		empty_cells_in_line ++;
+	    }
+	}
+
+	//at the end of the line, check if all were empty
+	if(empty_cells_in_line == g.w)
+	{
+	    empty_lines ++;
+	    empty_cells_in_line = 0;
+	}
+	else
+	{
+	    //draw the falseness
+	    create_rects_for_false_bits_fn(empty_lines, empty_cells_in_line);
+	    empty_lines = 0;
+	    empty_cells_in_line = 0;
+	}
+    }
+
+    create_rects_for_false_bits_fn(empty_lines,empty_cells_in_line);
+
+    var m = (new Snap.matrix()).scale(g.zoom);
+//    alert(m);
+    g.group.transform(m);
+
+}
+
+window.onload = function()
+{
+    s1 = Snap("#s1");
+    p1 = s1.select("#fillpat1");
+    g1 = create_grid(s1,p1, cols*charw,rows*charh,4);
+}
+
+function resizesvg()
+{
+    s1.attr({width: 300, height: 300});
+}
+
+</script>
+    
+</head>
+
+    <body>
+    <p>Introduction: bla bla bla</p>
+    <table>
+    <tr>
+    <td>Message
+    <td><textarea></textarea>
+    <td>OTP
+    <td><textarea></textarea>
+    <td><input type="button" value="Generate OTP">
+    <td><input type="button" value="changesize" onclick="resizesvg()">
+    </tr>
+    </table>
+    <br>Encoded Page 1
+    <br>
+    <svg width="700" height="500" id="s1">
+    <defs>
+    <pattern id="fillpat1" x="1" y="1" width="4" height="4" patternUnits="userSpaceOnUse">
+    //<rect width="0.4" height="0.4" fill= "#FFFFFF" />
+    <circle cx="2" cy="2" r="2" fill= "#000000" />
+    </pattern>
+    </svg>
+    <svg width="200" height="200" id="s2">
+    <defs>
+    <pattern id="fillpat2" x=".1" y=".1" width=".4" height=".4" patternUnits="userSpaceOnUse">
+    <rect width="0.4" height="0.4" fill= "#000000" />
+    <circle cx=".2" cy=".2" r=".2" fill= "#FFFFFF" />
+    </pattern>
+    </svg>
+
+    <br>Encoded Page 2
+</body>
+    
+</html>
+    
+
+
+
