@@ -41,7 +41,7 @@ function path_rect(x,y,w,h)
 	"L "+x+" "+y;
 }
 
-function redraw_grid(g,bits,width,pathtxt)
+function redraw_grid(g,bits,width,pathtxt,color)
 {
     g.s.clear();
     if(bits.length == 0 || width == 0)
@@ -116,7 +116,7 @@ function redraw_grid(g,bits,width,pathtxt)
 
     create_rects_for_bits_fn(filled_lines,filled_cells_in_line);
 
-    var patbasis = g.s.path(pathtxt);
+    var patbasis = g.s.path(pathtxt).attr({ fill: color });
     var pattern = patbasis.toPattern(0,0,1,1);
     g.s.path(path).attr({ fill: pattern });
 }
@@ -288,10 +288,13 @@ function input_changed()
 	//console.log(g1.bits);
 
 	redraw_grid(g1,g1_bits, message.width,
-		    "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"
+		    "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0",
+		    "#808080"
+		    
 		   );
 	redraw_grid(g2,g2_bits, message.width,
-		    "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5");
+		    "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5",
+		   "#000000");
     }
 }
 
