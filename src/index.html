@@ -11,38 +11,25 @@
 
 var s1;
 var s2;
+var g1,g2;
 
 var rows = 10;
 var cols = 30;
 var charh = 8;
 var charw = 5;
 
-function create_grid(s,p,w,h)
+var otp_bits = [];
+
+var font = console_font_5x8;
+
+var min_force_wrap = 5;
+var page_ratio = 8.5/11;
+
+function create_grid(s)
 {
-    // var g = [];
-    // g[w*h-1]=0; //preallocate it, I guess?
-    
-    // for(y = 0; y != h; y++) {
-    // 	for(x = 0; x != w; x++) {
-    // 	    g[x+y*w] = r = s.rect(x,y,x+1,y+1);
-    // 	    r.attr({ fill: "#FFFFFF" });
-    // 	}
-    // }
+    g = { s: s };
 
-    g = { bits: [], h: h, w: w, s: s, group: s.group(), pattern: p, mask: null,
-	  background_rect: null};
-
-    for(i = w*h-1; i >= 0; i--)
-    {
-	g.bits[i] = false;
-    }
-
-    //the background is the pattern and the foreground blocks it out where we have false bits
-    var r = g.s.rect(0,0,g.w,g.h);
-    r.attr({ fill: g.pattern });
-    g.background_rect = r;
-
-    redraw_grid(g);
+    return g;
 }
 
 function path_rect(x,y,w,h)
@@ -54,108 +41,158 @@ function path_rect(x,y,w,h)
 	"L "+x+" "+y;
 }
 
-function redraw_grid(g)
+function redraw_grid(g,bits,width,pathtxt)
 {
-    //we use tiny little boxes to black out the pixels. I was thinking of using a dynamically created
+    g.s.clear();
+    if(bits.length == 0 || width == 0)
+	return;
+    
+    //we use a dyanamically generated path to mark pixels. I was thinking about using a 
     //bitmap and scaling it in the SVG but this seems flaky cross browsers. At least one example of doing
     //so didn't work right in my browser (google chrome 49 on linux).
 
-    if(g.mask)
-    {
-	g.mask.remove();
-    }
+    var height = bits.length/width;
+
+    //console.log("w %d h %d",width, height);
+    //console.log(bits);
+
+    g.s.attr({viewBox:[0,0,width,height].join(' '),
+    	      //preserveAspectRatio: "none"
+    	     });
+    // g.s.attr({viewBox:[0,0,100,100].join(' '),
+    // 	      //preserveAspectRatio: "none"
+    // 	     });
 
     var path="";
 
-    var empty_cells_in_line=0;
-    var empty_lines=0;
+    var filled_cells_in_line=0;
+    var filled_lines=0;
 
-    var create_rects_for_false_bits_fn =
-	function(empty_lines, empty_cells_in_line) {
+    var create_rects_for_bits_fn =
+	function(filled_lines, filled_cells_in_line) {
 	    //draw last rectangle
-	    if(empty_lines > 0)
+	    if(filled_lines > 0)
 	    {
-		path += (path_rect(0,y-empty_lines,g.w,empty_lines));
+		path += (path_rect(0,y-filled_lines,width,filled_lines));
 	    }
-	    //draw the current set of empty cells
-	    if(empty_cells_in_line != 0)
+	    //draw the current set of filled cells
+	    if(filled_cells_in_line != 0)
 	    {
-		path += (path_rect(x-empty_cells_in_line,y,empty_cells_in_line,1));
+		path += (path_rect(x-filled_cells_in_line,y,filled_cells_in_line,1));
 	    }
 	};
 
-    for(y=0;y<g.h;y++)
+    for(y=0;y<height;y++)
     {
-	for(x=0;x<g.w;x++)
+	for(x=0;x<width;x++)
 	{
-	    if(g.bits[y*g.h+x])
+	    if(!bits[y*width+x])
 	    {
-		create_rects_for_false_bits_fn(empty_lines, empty_cells_in_line);
-		empty_lines = 0;
-		empty_cells_in_line = 0;
+		//console.log("true value %d %d",x,y)
+		create_rects_for_bits_fn(filled_lines, filled_cells_in_line);
+		filled_lines = 0;
+		filled_cells_in_line = 0;
 	    }
 	    else
 	    {
-		empty_cells_in_line ++;
+		filled_cells_in_line ++;
 	    }
 	}
 
-	//at the end of the line, check if all were empty
-	if(empty_cells_in_line == g.w)
+	//at the end of the line, check if all were filled
+	if(filled_cells_in_line == width)
 	{
-	    empty_lines ++;
-	    empty_cells_in_line = 0;
+	    filled_lines ++;
+	    filled_cells_in_line = 0;
 	}
 	else
 	{
-	    //draw the falseness for the previous empty lines
-	    create_rects_for_false_bits_fn(empty_lines, empty_cells_in_line);
-	    empty_lines = 0;
-	    empty_cells_in_line = 0;
+	    //draw the bits for the previous filled lines
+	    create_rects_for_bits_fn(filled_lines, filled_cells_in_line);
+	    filled_lines = 0;
+	    filled_cells_in_line = 0;
 	}
     }
 
-    create_rects_for_false_bits_fn(empty_lines,empty_cells_in_line);
+    create_rects_for_bits_fn(filled_lines,filled_cells_in_line);
 
-    g.mask = g.s.path(path).attr({ fill: "#EEEEEE" });
-
-    var matrix = (new Snap.matrix()).scale(g.s.attr().width/g.w,g.s.attr().height/g.h)
-    g.mask.transform(matrix);
-    g.background_rect.transform(matrix);
+    var patbasis = g.s.path(pathtxt);
+    var pattern = patbasis.toPattern(0,0,1,1);
+    g.s.path(path).attr({ fill: pattern });
 }
 
 window.onload = function()
 {
     s1 = Snap("#s1");
-    var p1 = s1.select("#fillpat1");
-    var g1 = create_grid(s1,p1, cols*charw,rows*charh);
+    g1 = create_grid(s1);
 
     s2 = Snap("#s2");
-    var p2 = s1.select("#fillpat2");
-    var g2 = create_grid(s2,p2, cols*charw,rows*charh);
+    g2 = create_grid(s2);
 }
 
-function resizesvg()
+function calc_rows(t, force_wrap)
 {
-    s1.attr({width: 300, height: 300});
+    var rows = 1;
+    var col = 0;
+    for(var i = 0; i < t.length; i++)
+    {
+	var c = t.charAt(i);
+	if(c == '\n')
+	{
+	    rows++;
+	    col = 0;
+	}
+	else
+	{
+	    col++;
+	    if(col >= force_wrap)
+	    {
+		rows++;
+		col=0;
+	    }
+	}
+    }
+
+    return rows;
 }
 
-var message = { text: "",
-		bits: [],
-		force_wrap: 30
-	      };
-
-var font = console_font_5x8;
-
-function set_message_txt(t)
+function choose_force_wrap(t)
 {
+    var i;
+    
+    //We want to maximize the dpi considering a standard size page (8.5 x 11), the
+    //font width and height, and assuming square pixels
+    for(i = min_force_wrap;; i++)
+    {
+	var rows = calc_rows(t,i);
+	if(i/rows > page_ratio)
+	    break;
+    }
+    
+    return i;
+}
+
+function create_message_for_txt(t)
+{
+    var message = { text: "",
+		    bits: [],
+		    force_wrap: null,
+		    width: null
+		  };
+    
+    message.force_wrap = choose_force_wrap(t);
+    message.width = message.force_wrap * charw; //width always matches force_wrap * charw
+    //it's just for convenience
+    
     //assumes 5x8 and writes t into bits
     message.text=t;
     message.bits = [];
 
+    //console.log(message);
+
     var row = 0;
     var col = 0;
-    for(var i = 0; i < t.length(); i++)
+    for(var i = 0; i < t.length; i++)
     {
 	//go through each line of character, horizontally
 	
@@ -174,8 +211,8 @@ function set_message_txt(t)
 	var c = t.charCodeAt(i);
 	if(c == 10) //newline
 	{
-	    row = 0;
-	    col++;
+	    col = 0;
+	    row++;
 	    continue;
 	}
 	
@@ -183,27 +220,79 @@ function set_message_txt(t)
 
 	var bitx = col * charw;
 	var bity = row * charh;
+
+	//we expand the buffer so it's always rectangular
+	message.bits[(bity+charh)*message.width-1] = false;
+	
+	//console.log("bitx "+bitx+" bity "+bity)
 	for(var bitline = 0; bitline < charh; bitline++)
 	{
 	    for(var bit = 0; bit < charw; bit++)
 	    {
-		var on = (font[bitline] >> (7 - bit));
-		message.bits[bitx + bity * message.force_wrap * charw] = on;
+		var on = (1&(font[cr+bitline] >> (7 - bit))) == 1;
+		//console.log("bitline "+bitline+" font "+font[cr+bitline]+" bit "+bit+" on "+on)
+		var bit_index = bitx + bit + (bity + bitline) * message.width;
+		message.bits[bit_index] = on;
 	    }
 	}
 
-	row++;
-	if(row > message.force_wrap)
+	col++;
+	if(col >= message.force_wrap)
 	{
-	    row = 0;
-	    col++;
+	    col = 0;
+	    row++;
 	}
     }
+
+    return message;
 }
 
-function update_svgs()
+function xor_bits(b1,b2)
 {
+    var o = [];
+    o[(b1.length < b2.length ? b2.length : b1.length) - 1] = false;
+    //console.log("b1 "+b1.length)
+    // console.log("b2 "+b2[0])
     
+    for(i = 0; i < o.length; i++)
+    {
+	o[i] = (b1[i] && !b2[i] || !b1[i] && b2[i]);
+	// !(b1[i] == b2[i]); doesn't work???
+    }
+
+    return o;
+}
+
+function create_otp_bits(length)
+{
+    var bits = [];
+    bits[length-1] = false; //prealloc
+    for(i = 0; i < length; i++)
+	bits[i] = (Math.random() >= .5); //(i %2 == 0); //TODO FIXME
+
+    return bits;
+}
+
+function input_changed()
+{
+    if(g1 && g2)
+    {
+	//console.log('hi');
+	var input = document.getElementById('msg');
+	var message = create_message_for_txt(input.value);
+	var otp_bits = create_otp_bits(message.bits.length);
+	var g1_bits = xor_bits(message.bits, otp_bits);
+	//
+	message.bits;
+	var g2_bits = otp_bits;
+	//console.log(g1.bits);
+
+	redraw_grid(g1,g1_bits, message.width,
+		    "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"
+		   );
+	redraw_grid(g2,g2_bits, message.width,
+		    "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5");
+    }
 }
 
 
@@ -216,32 +305,25 @@ function update_svgs()
     <table>
     <tr>
     <td>Message
-    <td><textarea></textarea>
+    <td><textarea autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
     <td>OTP
     <td><textarea></textarea>
     <td><input type="button" value="Generate OTP">
-    <td><input type="button" value="changesize" onclick="resizesvg()">
     </tr>
     </table>
-    <br>Encoded Page 1
+    <table>
+    <tr>
+    <td>
+    Encoded Page 1
     <br>
-    <svg width="700" height="500" id="s1">
-    <defs>
-    <pattern id="fillpat1" x="1" y="1" width="4" height="4" patternUnits="userSpaceOnUse">
-    //<rect width="0.4" height="0.4" fill= "#FFFFFF" />
-    <circle cx="2" cy="2" r="2" fill= "#000000" />
-    </pattern>
-    </svg>
-    <br>Encoded Page 2
-    <svg width="700" height="500" id="s2">
-    <defs>
-    <pattern id="fillpat2" x=".1" y=".1" width=".4" height=".4" patternUnits="userSpaceOnUse">
-    <rect width="0.4" height="0.4" fill= "#000000" />
-    <circle cx=".2" cy=".2" r=".2" fill= "#FFFFFF" />
-    </pattern>
-    </svg>
-
-    <br>Encoded Page 2
+    <svg width="100%" height="500" id="s1" />
+    </td>
+    <td>&nbsp;</td>
+    <td>
+    Encoded Page 2
+    <br>
+    <svg width="100%" height="500" id="s2" />
+    </td></tr></table>
 </body>
     
 </html>
