@@ -7,6 +7,7 @@
     <script src="seedrandom.min.js"></script>
     <script src="rng.js"></script>
     <script src="5x8.js"></script>
+    <script src="sixteenSeg.js"></script>
     <script>
 
 var s1;
@@ -24,6 +25,15 @@ var font = console_font_5x8;
 
 var min_force_wrap = 5;
 var page_ratio = 8.5/11;
+
+var g1_pattern = "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0";
+var g1_color = "#808080";
+
+var g2_pattern = "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5";
+var g2_color = "#000000";
+		  
+		  
+
 
 function create_grid(s)
 {
@@ -121,8 +131,66 @@ function redraw_grid(g,bits,width,pathtxt,color)
     g.s.path(path).attr({ fill: pattern });
 }
 
+function create_seg_path(x,y,coords)
+{
+    var path = "M ";
+    for(var i = 0; i < coords.length; i+=2)
+    {
+	path += (x+coords[i])+" "+(y+coords[i+1])+" ";
+    }
+    path += (x+coords[0])+" "+(y+coords[1])+" ";
+
+    return path;
+}
+
+function draw_segchar(g,bits,chars_per_line,pathtxt,color, segchar)
+{
+    if(bits.length == 0 || chars_per_line == 0)
+	return;
+
+    var width = chars_per_line * segchar.width + (chars_per_line - 1) * segchar.hgap;
+    var chars_per_col = bits.length / (chars_per_line*segchar.bit_count);
+    var height = chars_per_col * segchar.height+ (chars_per_col - 1) * segchar.vgap;
+
+    //console.log("w %d chars_per_col %f chars_per_line %d height %d",width,chars_per_col,chars_per_line, height);
+    
+    var path="";
+
+    for(var r=0;r<chars_per_col;r++)
+    {
+    	for(var c=0;c<chars_per_line;c++)
+    	{
+    	    var x = c*(segchar.width+segchar.hgap);
+    	    var y = r*(segchar.height+segchar.vgap);
+    	    for(var i=0; i < segchar.bit_count; i++)
+    	    {
+		//console.log("bl: %d v: %d",bits.length,(r*chars_per_line+c)*segchar.bit_count + i);
+    		if(bits[(r*chars_per_line+c)*segchar.bit_count + i])
+    		{
+    		    path += create_seg_path(x,y,segchar.coords[i]);
+    		}
+    	    }
+    	}
+    }
+
+    //console.log(path);
+    var patbasis = g.s.path(pathtxt).attr({ fill: color });
+    var pattern = patbasis.toPattern(0,0,1,1);
+    var sc = g.s.path(path);
+    sc.attr({ fill: pattern });
+
+    return { elem: sc,
+	     w: width,
+	     h: height
+	   };
+	     
+}
+
 window.onload = function()
 {
+    document.getElementById("mainarea").style.display = "block";
+    document.getElementById("printarea").style.display = "none";
+    
     s1 = Snap("#s1");
     g1 = create_grid(s1);
 
@@ -156,7 +224,7 @@ function calc_rows(t, force_wrap)
     return rows;
 }
 
-function choose_force_wrap(t)
+function choose_force_wrap(t, font_width_over_height)
 {
     var i;
     
@@ -165,14 +233,14 @@ function choose_force_wrap(t)
     for(i = min_force_wrap;; i++)
     {
 	var rows = calc_rows(t,i);
-	if(i/rows > page_ratio)
+	if(i * font_width_over_height / rows > page_ratio)
 	    break;
     }
     
     return i;
 }
 
-function create_message_for_txt(t)
+function create_message_for_grid(t)
 {
     var message = { text: "",
 		    bits: [],
@@ -180,7 +248,7 @@ function create_message_for_txt(t)
 		    width: null
 		  };
     
-    message.force_wrap = choose_force_wrap(t);
+    message.force_wrap = choose_force_wrap(t, charw/charh);
     message.width = message.force_wrap * charw; //width always matches force_wrap * charw
     //it's just for convenience
     
@@ -247,6 +315,54 @@ function create_message_for_txt(t)
     return message;
 }
 
+function create_message_for_seg(t,seg)
+{
+    var message = { text: "",
+		    bits: [],
+		    force_wrap: null,
+		  };
+    
+    message.force_wrap = choose_force_wrap(t,(seg.width+seg.hgap)/(seg.height+seg.vgap));
+    
+    message.text=t;
+    message.bits = [];
+
+    var row = 0;
+    var col = 0;
+    for(var i = 0; i < t.length; i++)
+    {
+	var c = t.charCodeAt(i);
+	if(c == 10) //newline
+	{
+	    col = 0;
+	    row++;
+	    continue;
+	}
+
+	//console.log("col %d row %d", col, row);
+	//we expand the buffer so it's always rectangular
+	message.bits[(row+1)* seg.bit_count * message.force_wrap - 1] = false;
+	
+	var bitval = seg.ascii_map[c];
+	var bitindex = (row * message.force_wrap + col) * seg.bit_count;
+	
+	for(var bit = 0; bit < seg.bit_count; bit++)
+	{
+	    var on = (1&(bitval >> bit)) == 1;
+	    message.bits[bitindex+bit] = on;
+	}
+
+	col++;
+	if(col >= message.force_wrap)
+	{
+	    col = 0;
+	    row++;
+	}
+    }
+
+    return message;
+}
+
 function xor_bits(b1,b2)
 {
     var o = [];
@@ -268,42 +384,138 @@ function create_otp_bits(length)
     var bits = [];
     bits[length-1] = false; //prealloc
     for(i = 0; i < length; i++)
-	bits[i] = (Math.random() >= .5); //(i %2 == 0); //TODO FIXME
+	bits[i] = (Math.random() >= .5);
+    //0;
 
     return bits;
 }
 
+function get_mode()
+{
+    var radios = document.getElementsByName('mode');
+    for (var i = 0, length = radios.length; i < length; i++) {
+	if (radios[i].checked) {
+            return radios[i].value;
+	}
+    }
+}
+    
 function input_changed()
 {
+    var mode = get_mode();
+    
+    var input = document.getElementById('msg').value;
+    if(input.length == 0)
+    {
+	document.getElementById('print_s1').disabled=true;
+	document.getElementById('print_s2').disabled=true;
+    }
+    else
+    {
+	document.getElementById('print_s1').disabled=false;
+	document.getElementById('print_s2').disabled=false;
+    }
+    
     if(g1 && g2)
     {
+	if(mode == "grid")
+	{
+	    //console.log('hi');
+	    var message = create_message_for_grid(input);
+	    var otp_bits = create_otp_bits(message.bits.length);
+	    var g1_bits = xor_bits(message.bits, otp_bits);
+	    //
+	    message.bits;
+	    var g2_bits = otp_bits;
+	    //console.log(g1.bits);
+	    
+	    redraw_grid(g1,g1_bits, message.width,
+			g1_pattern,
+			g1_color
+		       );
+	    redraw_grid(g2,g2_bits, message.width,
+			g2_pattern,
+			g2_color);
+	}
+	else if(mode == "sixteenseg")
+	{
+	    var message = create_message_for_seg(input, segchar16);
+	    var otp_bits = create_otp_bits(message.bits.length);
+	    var g1_bits = xor_bits(message.bits, otp_bits);
+	    // message.bits;
+	    var g2_bits = otp_bits;
+	    //console.log(message);
+	    
+	    g1.s.clear();
+	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
+			   g1_pattern,
+			   g1_color, segchar16
+				  );
+
+	    if(sc1)
+		g1.s.attr({viewBox:[0,0,sc1.w,sc1.h].join(' '),
+    		 	   //preserveAspectRatio: "none"
+    			  });
+		
+		
+	    g2.s.clear();
+	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
+				   g2_pattern, g2_color,segchar16);
+	    if(sc2)
+		g2.s.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
+    		 	   //preserveAspectRatio: "none"
+    			  });
+		
+	}
+    }
+}
+
+function print_s1()
+{
+    document.getElementById("mainarea").style.display = "none";
+    document.getElementById("printarea").style.display = "block";
+
+    var sp = Snap("#p");
+    var gp = create_grid(sp);
+
+    var input = document.getElementById('msg').value;
+    var mode = get_mode();
+
+    if(mode == "grid")
+    {
 	//console.log('hi');
-	var input = document.getElementById('msg');
-	var message = create_message_for_txt(input.value);
+	var message = create_message_for_grid(input);
 	var otp_bits = create_otp_bits(message.bits.length);
 	var g1_bits = xor_bits(message.bits, otp_bits);
 	//
-	message.bits;
-	var g2_bits = otp_bits;
-	//console.log(g1.bits);
-
-	redraw_grid(g1,g1_bits, message.width,
-		    "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0",
-		    "#808080"
-		    
-		   );
-	redraw_grid(g2,g2_bits, message.width,
-		    "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5",
-		   "#000000");
+	
+	redraw_grid(gp,g1_bits, message.width,
+		    g1_pattern,
+		    g1_color);
     }
+    else if(mode == "sixteenseg")
+    {
+	var message = create_message_for_seg(input, segchar16);
+	var otp_bits = create_otp_bits(message.bits.length);
+	var g1_bits = xor_bits(message.bits, otp_bits);
+	
+	var m = redraw_segchar(gp,g1_bits, message.force_wrap,
+			       g1_pattern, g1_color, segchar16
+			      );
+	//m.
+    }
+    
+    
 }
 
 
 </script>
-    
+
+
 </head>
 
     <body>
+    <div id="mainarea">
     <p>Introduction: bla bla bla</p>
     <table>
     <tr>
@@ -313,6 +525,9 @@ function input_changed()
     <td><textarea></textarea>
     <td><input type="button" value="Generate OTP">
     </tr>
+    <tr><td colspan="4">
+    <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment
+    <input type="radio" name="mode" value="grid" onclick="input_changed()">Grid
     </table>
     <table>
     <tr>
@@ -320,13 +535,19 @@ function input_changed()
     Encoded Page 1
     <br>
     <svg width="100%" height="500" id="s1" />
+    <br><input type="button" disabled="true" onclick="print_s1()" id="print_s2" value="Print First Page" />
     </td>
     <td>&nbsp;</td>
     <td>
     Encoded Page 2
     <br>
     <svg width="100%" height="500" id="s2" />
+    <br><input type="button" disabled="true" onclick="print_s2()" id="print_s1" value="Print Second Page" />
     </td></tr></table>
+    </div>
+    <div id="printarea">
+    <svg width="100%" height="100%" id="p" />
+    </div>
 </body>
     
 </html>
