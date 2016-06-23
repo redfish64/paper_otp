@@ -615,16 +615,18 @@ function draw_legend(page_number, //1 or 2
 	draw_example_coord(g,seg, true,"off", page_number == 1),
 	draw_legend_text(g,"Example:"),
 	draw_legend_seg_bit_char(seg,
-				 page_number,
-				 
-				 
+				 page_number == 1 ?
+				 legend.example_bitmap1 :
+				 legend.example_bitmap2
+				),
 	draw_legend_text(g,"="),
-	create_seg_bit_char(0,0, legend.example_bitmap1 ^ legend.example_bitmap2),
-	g.text("="),
-		  g.text("="),
-		  g.text("K")
-		     
-		  
+	draw_legend_seg_bit_char(seg,
+				 legend.example_bitmap1 ^
+				 legend.example_bitmap2
+				),
+	draw_legend_text(g,"="),
+	draw_legend_text(g,"K"));
+
     var group = g.g();
 
     var lt = g.text("Legend:");
@@ -686,6 +688,10 @@ function print_s1()
     		//preserveAspectRatio: "none"
     	       });
 
+	//all tables and charts are written directly in the svg.
+	//It seems easier than breaking out into html
+	//since I need the data to *exactly* overlap
+	//in the legend (although I may be wrong on this)
 	var at = draw_ascii_table_for_seg(g,segchar16, pattern);
 
 	transform_to_box(at,scw,0,scw+rm,sch+bm);
