@@ -24,23 +24,47 @@ var otp_bits = [];
 var font = console_font_5x8;
 
 var min_force_wrap = 5;
-var page_ratio = 8.5/11;
+var page_ratio = 7.5/10; //8.5x11 with half inch margins
 
-var g1_pattern = "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0";
-var g1_color = "#808080";
+//pattern and color for code in first page
+var g1_pat_path = "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0";
+var g1_pat_color = "#808080";
 
-var g2_pattern = "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5";
-var g2_color = "#000000";
-		  
-		  
+//pattern and color for code in second page
+var g2_pat_path = "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5";
+var g2_pat_color = "#000000";
+
+//for printing, the right margin is used for an ascii to value table
+var right_margin_perc = .15;
+//for printing, the bottom margin is used to help the user understand the results
+var bottom_margin_perc = .1;
+
+//draw_ascii_table_for_seg
+var ascii =
+    {
+	char_height: 10,
+	line_height: 12,
+	col_gap: 8,
+	max_rows: 47,
+	//94 chars
+	char_start: 33, // "!";
+	char_end: 126, // "~";
+	left_margin: 10
+    };
 
 
-function create_grid(s)
-{
-    g = { s: s };
+var legend =
+    {
+	char_height: 10,
+	coord_ex_height: 14,
+	item_hgap: 5,
+	group_hgap: 20,
+	seg_ex_height: 14,
 
-    return g;
-}
+	//"K"
+	example_bitmap1: 0b0110000110110111,
+	example_bitmap2: 0b0100110110010011
+    };
 
 function path_rect(x,y,w,h)
 {
@@ -53,7 +77,7 @@ function path_rect(x,y,w,h)
 
 function redraw_grid(g,bits,width,pathtxt,color)
 {
-    g.s.clear();
+    g.clear();
     if(bits.length == 0 || width == 0)
 	return;
     
@@ -66,10 +90,10 @@ function redraw_grid(g,bits,width,pathtxt,color)
     //console.log("w %d h %d",width, height);
     //console.log(bits);
 
-    g.s.attr({viewBox:[0,0,width,height].join(' '),
+    g.attr({viewBox:[0,0,width,height].join(' '),
     	      //preserveAspectRatio: "none"
     	     });
-    // g.s.attr({viewBox:[0,0,100,100].join(' '),
+    // g.attr({viewBox:[0,0,100,100].join(' '),
     // 	      //preserveAspectRatio: "none"
     // 	     });
 
@@ -126,9 +150,9 @@ function redraw_grid(g,bits,width,pathtxt,color)
 
     create_rects_for_bits_fn(filled_lines,filled_cells_in_line);
 
-    var patbasis = g.s.path(pathtxt).attr({ fill: color });
+    var patbasis = g.path(pathtxt).attr({ fill: color });
     var pattern = patbasis.toPattern(0,0,1,1);
-    g.s.path(path).attr({ fill: pattern });
+    g.path(path).attr({ fill: pattern });
 }
 
 function create_seg_path(x,y,coords)
@@ -143,7 +167,20 @@ function create_seg_path(x,y,coords)
     return path;
 }
 
-function draw_segchar(g,bits,chars_per_line,pathtxt,color, segchar)
+function create_seg_ascii_char(x,y,seg,ascii_index)
+{
+    var bitval = seg.ascii_map[ascii_index];
+    var path = "";
+    for(var bit = 0; bit < seg.bit_count; bit++)
+    {
+	var on = (1&(bitval >> bit)) == 1;
+	if(on) path += create_seg_path(x,y,seg.coords[bit]);
+    }
+
+    return path;
+}
+
+function draw_segchar(g,bits,chars_per_line,pattern, segchar)
 {
     if(bits.length == 0 || chars_per_line == 0)
 	return;
@@ -162,6 +199,7 @@ function draw_segchar(g,bits,chars_per_line,pathtxt,color, segchar)
     	{
     	    var x = c*(segchar.width+segchar.hgap);
     	    var y = r*(segchar.height+segchar.vgap);
+
     	    for(var i=0; i < segchar.bit_count; i++)
     	    {
 		//console.log("bl: %d v: %d",bits.length,(r*chars_per_line+c)*segchar.bit_count + i);
@@ -174,11 +212,11 @@ function draw_segchar(g,bits,chars_per_line,pathtxt,color, segchar)
     }
 
     //console.log(path);
-    var patbasis = g.s.path(pathtxt).attr({ fill: color });
-    var pattern = patbasis.toPattern(0,0,1,1);
-    var sc = g.s.path(path);
+    var sc = g.path(path);
     sc.attr({ fill: pattern });
 
+    //we return the width and height explicitely (rather than letting the user run getBBox() on
+    //sc, because getBBox() is kind of slow.
     return { elem: sc,
 	     w: width,
 	     h: height
@@ -191,11 +229,9 @@ window.onload = function()
     document.getElementById("mainarea").style.display = "block";
     document.getElementById("printarea").style.display = "none";
     
-    s1 = Snap("#s1");
-    g1 = create_grid(s1);
+    g1 = Snap("#s1");
 
-    s2 = Snap("#s2");
-    g2 = create_grid(s2);
+    g2 = Snap("#s2");
 }
 
 function calc_rows(t, force_wrap)
@@ -446,23 +482,24 @@ function input_changed()
 	    var g2_bits = otp_bits;
 	    //console.log(message);
 	    
-	    g1.s.clear();
+	    g1.clear();
+	    var g1_pattern = get_pattern(g1, g1_pat_path, g1_pat_color);
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
-			   g1_pattern,
-			   g1_color, segchar16
+			   g1_pattern, segchar16
 				  );
 
 	    if(sc1)
-		g1.s.attr({viewBox:[0,0,sc1.w,sc1.h].join(' '),
+		g1.attr({viewBox:[0,0,sc1.w,sc1.h].join(' '),
     		 	   //preserveAspectRatio: "none"
     			  });
 		
 		
-	    g2.s.clear();
+	    g2.clear();
+	    var g2_pattern = get_pattern(g2, g2_pat_path, g2_pat_color);
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
-				   g2_pattern, g2_color,segchar16);
+				   g2_pattern,segchar16);
 	    if(sc2)
-		g2.s.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
+		g2.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
     		 	   //preserveAspectRatio: "none"
     			  });
 		
@@ -470,13 +507,138 @@ function input_changed()
     }
 }
 
+
+function draw_ascii_table_for_seg(g,seg,pattern)
+{
+    var max_char_width = 1;
+    var group = g.g();
+    var text_width = 0;
+    var col = -1;
+
+    var scaleSeg = ascii.char_height/seg.height;
+    var seg_width = seg.width * scaleSeg;
+    
+    for(var i = ascii.char_start;
+	i <= ascii.char_end;
+	i++)
+    {
+	if((i-ascii.char_start) % ascii.max_rows == 0)
+	    col++;
+	    
+	//note for the zeroth column, first row, text_width is zero, but this
+	//doesn't matter cause col is zero, too
+	var x = ascii.left_margin + col * (text_width + seg_width + ascii.col_gap);
+	var y = ((i-ascii.char_start)%ascii.max_rows) * ascii.line_height;
+	var text = g.text(x, y + ascii.char_height, String.fromCharCode(i)+ ":");
+	text.attr("font-size",ascii.char_height)
+	    .attr("font-family", "monospace");
+
+	//since were monospace, the text width is always the same
+	if(text_width == 0)
+	{
+	    text_width = text.getBBox().width;
+	}
+	//console.log("x %d tw %d", x,text_width);
+	// console.log("%d %s",i,seg.ascii_map[i]);
+	var char_path = create_seg_ascii_char(0,0, seg, i);
+	//console.log(char_path);	
+	var path = g.path(char_path);
+	path.attr({ fill:
+		 g1_pat_color})
+	//pattern});
+	
+	var m = (new Snap.Matrix())
+	    .translate(x+text_width,y)
+	    .scale(scaleSeg);
+	path.transform(m);
+	group.add(text,path);
+
+    }
+
+    return group;
+}
+
+//TODO 2 make a list of identical chars and warn about them if the user uses them, or fix them to not be
+//identical
+
+function transform_to_box(e,x1,y1,x2,y2)
+{
+    var bbox = e.getBBox();
+
+    var matrix = new Snap.Matrix();
+    matrix.translate(x1,y1);
+
+    var scale = Math.min((x2-x1)/bbox.w,(y2-y1)/bbox.h);
+    matrix.scale(scale);
+
+    e.transform(matrix);
+}
+
+function get_pattern(g,pathtxt,color)
+{
+    var patbasis = g.path(pathtxt).attr({ fill: color });
+    return patbasis.toPattern(0,0,1,1);
+}
+
+function draw_legend_text(g,text)
+{
+    var o = g.text(text).attr("font-size",legend.char_height);
+
+    return { o: o,
+	     h: legend.char_height
+	   };
+}
+
+function draw_example_coord(g, seg,is_draw_seg, text, is_draw_text)
+
+
+
+function draw_legend_seg_bit_char(g, seg,is_draw_seg, text, is_draw_text)
+{ o:
+	  create_seg_bit_char(0,0,seg, page_number == 1 ?
+			      legend.example_bitmap1 :
+			      legend.example_bitmap2),
+	  h: seg.height,
+	  sh: legend.seg_ex_height
+	},
+
+
+function draw_legend(page_number, //1 or 2
+		     g,seg,pattern)
+{
+    draw_legend_objects
+    (
+	draw_legend_text(g,"Legend:", page_number == 1),
+	draw_example_coord(g,seg, page_number==1,"on", page_number == 1),
+	draw_example_coord(g,seg, page_number==2,"on", page_number == 1),
+	draw_example_coord(g,seg, false,"off", page_number == 1),
+	draw_example_coord(g,seg, true,"off", page_number == 1),
+	draw_legend_text(g,"Example:"),
+	draw_legend_seg_bit_char(seg,
+				 page_number,
+				 
+				 
+	draw_legend_text(g,"="),
+	create_seg_bit_char(0,0, legend.example_bitmap1 ^ legend.example_bitmap2),
+	g.text("="),
+		  g.text("="),
+		  g.text("K")
+		     
+		  
+    var group = g.g();
+
+    var lt = g.text("Legend:");
+    group.add(lt);
+    
+    
+}
+
 function print_s1()
 {
     document.getElementById("mainarea").style.display = "none";
     document.getElementById("printarea").style.display = "block";
 
-    var sp = Snap("#p");
-    var gp = create_grid(sp);
+    var g = Snap("#p");
 
     var input = document.getElementById('msg').value;
     var mode = get_mode();
@@ -489,7 +651,7 @@ function print_s1()
 	var g1_bits = xor_bits(message.bits, otp_bits);
 	//
 	
-	redraw_grid(gp,g1_bits, message.width,
+	redraw_grid(g,g1_bits, message.width,
 		    g1_pattern,
 		    g1_color);
     }
@@ -498,15 +660,44 @@ function print_s1()
 	var message = create_message_for_seg(input, segchar16);
 	var otp_bits = create_otp_bits(message.bits.length);
 	var g1_bits = xor_bits(message.bits, otp_bits);
+
+	g.clear();
+
+	var pattern = get_pattern(g, g1_pat_path, g1_pat_color);
+
+	var sc = draw_segchar(g,g1_bits, message.force_wrap,
+			      pattern, segchar16
+			     );
+	var scw = sc.w;
+	var sch = sc.h;
+
+	if(scw / page_ratio > sch)
+	    sch = scw / page_ratio;
+	else
+	    scw = sch * page_ratio;
 	
-	var m = redraw_segchar(gp,g1_bits, message.force_wrap,
-			       g1_pattern, g1_color, segchar16
-			      );
-	//m.
+	var rm = Math.round(scw * right_margin_perc);
+	var bm = Math.round(sch * bottom_margin_perc);
+
+	//sc.elem.attr({fill: "#000000"});
+	//console.log("rm %d bm %d",rm, bm);
+	//console.log(sc);
+	g.attr({viewBox:[0,0,scw+rm,sch+bm].join(' '),
+    		//preserveAspectRatio: "none"
+    	       });
+
+	var at = draw_ascii_table_for_seg(g,segchar16, pattern);
+
+	transform_to_box(at,scw,0,scw+rm,sch+bm);
+
+	var legend = draw_legend_p1(g,segchar16, pattern);
+
+	transform_to_box(at,0,sch,scw,sch+bm);
     }
     
-    
 }
+
+
 
 
 </script>
