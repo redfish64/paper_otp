@@ -3,11 +3,12 @@
     <head>
     <meta charset="UTF-8">
     <title>Paper based OTP</title>
-    <script src="snap.svg-min.js" />
+    <script src="snap.svg-min.js"></script>
     <script src="seedrandom.min.js"></script>
     <script src="rng.js"></script>
     <script src="5x8.js"></script>
     <script src="sixteenSeg.js"></script>
+    <script src="align.js"></script>
     <script>
 
 var s1;
@@ -56,10 +57,13 @@ var ascii =
 var legend =
     {
 	char_height: 10,
-	coord_ex_height: 14,
+	ex_total_height: 14,
+	ex_ind_coord_height: 10,
+	ex_vgap: 1,
+	ex_on_off_text_height: 3,
 	item_hgap: 5,
 	group_hgap: 20,
-	seg_ex_height: 14,
+	seg_height: 14,
 
 	//"K"
 	example_bitmap1: 0b0110000110110111,
@@ -167,9 +171,8 @@ function create_seg_path(x,y,coords)
     return path;
 }
 
-function create_seg_ascii_char(x,y,seg,ascii_index)
+function create_seg_bit_char(x,y,seg,bitval)
 {
-    var bitval = seg.ascii_map[ascii_index];
     var path = "";
     for(var bit = 0; bit < seg.bit_count; bit++)
     {
@@ -178,6 +181,11 @@ function create_seg_ascii_char(x,y,seg,ascii_index)
     }
 
     return path;
+}
+
+function create_seg_ascii_char(x,y,seg,ascii_index)
+{
+    return create_seg_bit_char(x,y,seg,seg.ascii_map[ascii_index]);
 }
 
 function draw_segchar(g,bits,chars_per_line,pattern, segchar)
@@ -555,7 +563,7 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 
     }
 
-    return group;
+    return Align.create_box(g,{ o: group });
 }
 
 //TODO 2 make a list of identical chars and warn about them if the user uses them, or fix them to not be
@@ -580,59 +588,95 @@ function get_pattern(g,pathtxt,color)
     return patbasis.toPattern(0,0,1,1);
 }
 
-function draw_legend_text(g,text)
+function create_legend_text(g,text)
 {
-    var o = g.text(text).attr("font-size",legend.char_height);
+    var o = g.text(0,0,text).attr("font-size",legend.char_height);
 
-    return { o: o,
-	     h: legend.char_height
-	   };
+    return Align.create_box(g,{o: o,
+			     h:legend.char_height});
 }
 
-function draw_example_coord(g, seg,is_draw_seg, text, is_draw_text)
+function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text)
+{
+    var group = g.g();
+
+    var coord_box,text_box;
+
+    if(is_draw_coord)
+    {
+	var coord = g.path(create_seg_path(0,0,seg.example_coord));
+	
+	coord_box = Align.create_box(g,{ o: coord,
+					 w: seg.example_coord_bb.w,
+					 h: seg.example_coord_bb.h
+				       }).
+	    transform_to_box({ h: legend.ex_ind_coord_height});
+
+	coord.attr({fill: pattern});
+    }
+    else
+	//create an empty box to represent the blank area
+	coord_box = Align.create_box(g,{
+	    w: seg.example_coord_bb.w,
+	    h: seg.example_coord_bb.h});
+	
+    if(is_draw_text)
+    {
+	var text = g.text(0,0,text).attr("font-size",legend.ex_on_off_text_height);
+	
+	text_box = Align.create_box(g,{ o: text,
+					h: seg.ex_on_off_text_height,
+				      });
+    }
+    else
+	//create an empty box to represent the blank area
+	text_box = Align.create_box(g,{
+	    w: 0,
+	    h: seg.ex_on_off_text_height});
+    
+    return Align.valign(g,coord_box,
+			Align.create_box(g, { w:0, h: legend.ex_vgap}),
+			text_box);
+}
 
 
+function create_legend_seg_bit_char(g, seg, bitmap)
+{
+    var o = create_seg_bit_char(0,0,seg, bitmap);
 
-function draw_legend_seg_bit_char(g, seg,is_draw_seg, text, is_draw_text)
-{ o:
-	  create_seg_bit_char(0,0,seg, page_number == 1 ?
-			      legend.example_bitmap1 :
-			      legend.example_bitmap2),
-	  h: seg.height,
-	  sh: legend.seg_ex_height
-	},
+    return Align.create_box(g,{ o: o,
+		       w: seg.width,
+		       h: seg.height
+		     }).transform_to_box({ h: legend.seg_height});
+}
 
 
-function draw_legend(page_number, //1 or 2
+function create_legend_box(page_number, //1 or 2
 		     g,seg,pattern)
 {
-    draw_legend_objects
-    (
-	draw_legend_text(g,"Legend:", page_number == 1),
-	draw_example_coord(g,seg, page_number==1,"on", page_number == 1),
-	draw_example_coord(g,seg, page_number==2,"on", page_number == 1),
-	draw_example_coord(g,seg, false,"off", page_number == 1),
-	draw_example_coord(g,seg, true,"off", page_number == 1),
-	draw_legend_text(g,"Example:"),
-	draw_legend_seg_bit_char(seg,
+    var legend_box = Align.halign
+    (g,
+	create_legend_text(g,"Legend:", page_number == 1),
+	create_example_coord(g,seg,pattern, page_number==1, "on", page_number == 1),
+	create_example_coord(g,seg,pattern, page_number==2, "on", page_number == 1),
+	create_example_coord(g,seg,pattern, false, "off", page_number == 1),
+	create_example_coord(g,seg,pattern, true, "off", page_number == 1),
+	create_legend_text(g,"Example:"),
+	create_legend_seg_bit_char(g,seg,
 				 page_number == 1 ?
 				 legend.example_bitmap1 :
 				 legend.example_bitmap2
 				),
-	draw_legend_text(g,"="),
-	draw_legend_seg_bit_char(seg,
+	create_legend_text(g,"="),
+	create_legend_seg_bit_char(g,seg,
 				 legend.example_bitmap1 ^
 				 legend.example_bitmap2
 				),
-	draw_legend_text(g,"="),
-	draw_legend_text(g,"K"));
+	create_legend_text(g,"="),
+	create_legend_text(g,"K")
+    );
 
-    var group = g.g();
-
-    var lt = g.text("Legend:");
-    group.add(lt);
-    
-    
+    return legend_box;
 }
 
 function print_s1()
@@ -689,16 +733,11 @@ function print_s1()
     	       });
 
 	//all tables and charts are written directly in the svg.
-	//It seems easier than breaking out into html
-	//since I need the data to *exactly* overlap
-	//in the legend (although I may be wrong on this)
 	var at = draw_ascii_table_for_seg(g,segchar16, pattern);
+	at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
 
-	transform_to_box(at,scw,0,scw+rm,sch+bm);
-
-	var legend = draw_legend_p1(g,segchar16, pattern);
-
-	transform_to_box(at,0,sch,scw,sch+bm);
+	var legend_box = create_legend_box(1,g,segchar16, pattern);
+	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm});
     }
     
 }
