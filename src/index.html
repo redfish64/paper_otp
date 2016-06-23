@@ -708,6 +708,11 @@ function print_s1()
 
 </script>
 
+    <style>
+    .large {
+	font-size: 200%;
+    }
+</style>
 
 </head>
 
@@ -731,7 +736,8 @@ function print_s1()
     <td>
     Encoded Page 1
     <br>
-    <svg width="100%" height="500" id="s1" />
+    <table style="width:100%;">
+    <tr><td><svg width="100%" height="500" id="s1" /></td>
     <br><input type="button" disabled="true" onclick="print_s1()" id="print_s2" value="Print First Page" />
     </td>
     <td>&nbsp;</td>
@@ -743,7 +749,28 @@ function print_s1()
     </td></tr></table>
     </div>
     <div id="printarea">
-    <svg width="100%" height="100%" id="p" />
+    <table>
+      <tr><td>
+	  <svg width="100%" height="100%" id="p" /></td>
+	<td rowspan=2><svg width="100%" height="100%" id="ascii_table" /></td>
+      </tr>
+      <tr>
+	<td>
+	  <table>
+	    <tr>
+	      <td><div class="p1_text">Legend:</div> <svg width="100%" height="100%" id="legend" /></td>
+	      <td><div class="p1_text">Example:</div>
+		<svg width="100%" height="100%" id="ex1" />
+		<div class="p1_text"> = </div>
+		<svg width="100%" height="100%" id="ex2" />
+		<div class="p1_text"> = </div>
+		<div class="p1_text large">K</div>
+	      </td>
+	    </tr>
+	  </table>
+	</td>
+      </tr>
+    </table>
     </div>
 </body>
     
