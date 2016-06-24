@@ -46,6 +46,7 @@ var ascii =
 	char_height: 10,
 	line_height: 12,
 	col_gap: 8,
+	inner_gap: 3,
 	max_rows: 47,
 	//94 chars
 	char_start: 33, // "!";
@@ -520,12 +521,12 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 {
     var max_char_width = 1;
     var group = g.g();
-    var text_width = 0;
     var col = -1;
 
-    var scaleSeg = ascii.char_height/seg.height;
-    var seg_width = seg.width * scaleSeg;
-    
+    var hgap_box = Align.create_box( g, { w: ascii.inner_gap, h: 0} );
+
+    var col_width = 0;
+
     for(var i = ascii.char_start;
 	i <= ascii.char_end;
 	i++)
@@ -533,34 +534,42 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 	if((i-ascii.char_start) % ascii.max_rows == 0)
 	    col++;
 	    
-	//note for the zeroth column, first row, text_width is zero, but this
-	//doesn't matter cause col is zero, too
-	var x = ascii.left_margin + col * (text_width + seg_width + ascii.col_gap);
-	var y = ((i-ascii.char_start)%ascii.max_rows) * ascii.line_height;
-	var text = g.text(x, y + ascii.char_height, String.fromCharCode(i)+ ":");
-	text.attr("font-size",ascii.char_height)
-	    .attr("font-family", "monospace");
-
-	//since were monospace, the text width is always the same
-	if(text_width == 0)
-	{
-	    text_width = text.getBBox().width;
-	}
-	//console.log("x %d tw %d", x,text_width);
-	// console.log("%d %s",i,seg.ascii_map[i]);
 	var char_path = create_seg_ascii_char(0,0, seg, i);
-	//console.log(char_path);	
+
 	var path = g.path(char_path);
 	path.attr({ fill:
 		 g1_pat_color})
-	//pattern});
-	
-	var m = (new Snap.Matrix())
-	    .translate(x+text_width,y)
-	    .scale(scaleSeg);
-	path.transform(m);
-	group.add(text,path);
 
+	var path_box = Align.create_box(g, { o: path, w: seg.width, h: seg.height }).
+	    transform_to_box( { h: ascii.char_height });
+	
+	var text = g.text(0, ascii.char_height,
+			  String.fromCharCode(i));
+	text.attr("font-size",ascii.char_height);
+
+	var text_box = Align.create_box(g, { o: text
+					     //h: ascii.char_h
+					   });
+
+	// var rect_box1 = Align.create_box(g, { o: g.rect(0,0,text_box.w,text_box.h).
+	// 				      attr({fill: "#FF0000"}) });
+	// var rect_box2 = Align.create_box(g, { o: g.rect(0,0,text_box.w,text_box.h).
+	// 				     attr({fill: "#00FF00"})});
+
+	//note for the zeroth column, first row, text_width is zero, but this
+	//doesn't matter cause col is zero, too
+	var x = ascii.left_margin + col * (col_width + ascii.col_gap);
+	var y = ((i-ascii.char_start)%ascii.max_rows) * ascii.line_height;
+
+	// console.log("pt");
+	// console.log(path_box,text_box);
+
+	var composite_box = Align.halign(g, path_box, hgap_box, text_box).
+	    transform_to_box({ x: x, y: y });
+
+	col_width = Math.max(col_width, composite_box.w);
+
+	group.add(composite_box.o);
     }
 
     return Align.create_box(g,{ o: group });
@@ -610,7 +619,8 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 	//create an empty box to represent the blank area
 	coord_box = Align.create_box(g,{
 	    w: seg.example_coord_bb.w,
-	    h: seg.example_coord_bb.h});
+	    h: seg.example_coord_bb.h}).
+	    transform_to_box({ h: legend.ex_ind_coord_height});
 	
     if(is_draw_text)
     {
@@ -702,7 +712,7 @@ function print_s1()
 	var message = create_message_for_grid(input);
 	var otp_bits = create_otp_bits(message.bits.length);
 	var g1_bits = xor_bits(message.bits, otp_bits);
-	//
+	// TODO 2 FINISH
 	
 	redraw_grid(g,g1_bits, message.width,
 		    g1_pattern,
@@ -732,11 +742,7 @@ function print_s1()
 	var rm = Math.round(scw * right_margin_perc);
 	var bm = Math.round(sch * bottom_margin_perc);
 
-	//sc.elem.attr({fill: "#000000"});
-	//console.log("rm %d bm %d",rm, bm);
-	//console.log(sc);
-	g.attr({viewBox:[0,0,scw+rm,sch+bm].join(' '),
-    		//preserveAspectRatio: "none"
+	g.attr({viewBox:[0,0,scw+rm,sch+bm].join(' ')
     	       });
 
 	//all tables and charts are written directly in the svg.

@@ -41,26 +41,30 @@
 	    {
 		var group;
 
-		//if not an empty box
-		if(box.o)
+		var nx,ny;
+		var nw,nh;
+
+		var scale=1;
+		if(p.w != null && p.h != null)
 		{
-		    var scale=1;
-		    if(p.w != null && p.h != null)
-		    {
-			scale = Math.min(p.w/box.w,p.h/box.h);
-		    }
-		    else if(p.h != null)
-		    {
-			scale = p.h/box.h;
-		    }
-		    else if(p.w != null)
-		    {
-			scale = p.w/box.w;
-		    }
-		    
-		    var transX = p.x || 0;	
-		    var transY = p.y || 0;
-		    
+		    scale = Math.min(p.w/box.w,p.h/box.h);
+		}
+		else if(p.h != null)
+		{
+		    scale = p.h/box.h;
+		}
+		else if(p.w != null)
+		{
+		    scale = p.w/box.w;
+		}
+		
+		nx = p.x || 0;	
+		ny = p.y || 0;
+		nw = box.w * scale;
+		nh = box.h * scale;
+
+		if(box.o )  //if not an empty box
+		{
 		    //since the element may have already been transformed, we need to use a group
 		    //and add the element to it. Otherwise, the original transformation is reset
 		    group = g.g(box.o);
@@ -68,15 +72,18 @@
 		    //console.log("x %f y %f s %f",transX, transY, scale);
 		    //console.log(box,p);
 		    
-		    group.transform(new Snap.matrix().translate(transX,transY).
+		    group.transform(new Snap.matrix().translate(nx,ny).
 				    scale(scale));
 		}
-		    
+
+		// console.log(box,p);
+		// console.log("nx %f ny %f nw %f nh %f s %f",nx,ny,nw,nh,scale);
+		
 		return Align.create_box(g,{ o: group,
-					    x: transX,
-					    y: transY,
-					    w: box.w,
-					    h: box.h});
+					    x: nx,
+					    y: ny,
+					    w: nw,
+					    h: nh});
 	    }
 	    
 	    return box;
@@ -115,7 +122,7 @@
 	    var g = arguments[0];
 
 	    var max_height = 0;
-	    console.log(arguments);
+//	    console.log(arguments);
 	    for(var i = 1; i < arguments.length; i++)
 	    {
 		if(arguments[i].h > max_height)
