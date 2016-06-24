@@ -66,9 +66,9 @@ var legend =
 	group_hgap: 20,
 	seg_height: 14,
 
-	//"K"
 	example_bitmap1: 0b0110000110110111,
-	example_bitmap2: 0b0100110110010011
+	example_bitmap2: 0b0100110110010011,
+	example_char: "K"
     };
 
 function path_rect(x,y,w,h)
@@ -585,9 +585,11 @@ function get_pattern(g,pathtxt,color)
     return patbasis.toPattern(0,0,1,1);
 }
 
-function create_legend_text(g,text)
+function create_legend_text(g,text, is_visible)
 {
-    var o = g.text(0,legend.char_height,text).attr("font-size",legend.char_height);
+    console.log("visible? %s",is_visible);
+    var o = g.text(0,legend.char_height,text).attr("font-size",legend.char_height)
+	.attr("visibility", is_visible? "visible" : "hidden");
 
     var b = Align.create_box(g,{o: o,
 				h:legend.char_height});
@@ -628,14 +630,14 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 	    attr("font-size",legend.ex_on_off_text_height);
 	
 	text_box = Align.create_box(g,{ o: text,
-					h: seg.ex_on_off_text_height,
+					h: legend.ex_on_off_text_height,
 				      });
     }
     else
 	//create an empty box to represent the blank area
 	text_box = Align.create_box(g,{
 	    w: 0,
-	    h: seg.ex_on_off_text_height});
+	    h: legend.ex_on_off_text_height});
     
     return Align.valign(g,coord_box,
 			Align.create_box(g, { w:0, h: legend.ex_vgap}),
@@ -673,30 +675,30 @@ function create_legend_box(page_number, //1 or 2
      item_spacer,
      create_example_coord(g,seg,pattern, true, "off", page_number == 1),
      group_spacer,
-     create_legend_text(g,"Example:"),
+     create_legend_text(g,"Example:", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
-				   page_number == 1 ?
-				   legend.example_bitmap1 :
-				   legend.example_bitmap2
-				  ),
+     				   page_number == 1 ?
+     				   legend.example_bitmap1 :
+     				   legend.example_bitmap2
+     				  ),
      item_spacer,
-     create_legend_text(g,"="),
+     create_legend_text(g,"=", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
-				 legend.example_bitmap1 ^
-				 legend.example_bitmap2
-				),
+     				 legend.example_bitmap1 ^
+     				 legend.example_bitmap2
+     				),
      item_spacer,
-     create_legend_text(g,"="),
+     create_legend_text(g,"=", page_number == 1),
      item_spacer,
-     create_legend_text(g,"K")
+     create_legend_text(g,legend.example_char, page_number == 1)
     );
 
     return legend_box;
 }
 
-function print_s1()
+function print_page(page_number)
 {
     document.getElementById("mainarea").style.display = "none";
     document.getElementById("printarea").style.display = "block";
@@ -706,29 +708,38 @@ function print_s1()
     var input = document.getElementById('msg').value;
     var mode = get_mode();
 
+    var message = create_message_for_seg(input, segchar16);
+
+    var bits;
+    if(page_number == 1)
+    {
+	var otp_bits = create_otp_bits(message.bits.length);
+	bits = xor_bits(message.bits, otp_bits);
+    }
+    else
+	bits = create_otp_bits(message.bits.length);
+    
     if(mode == "grid")
     {
 	//console.log('hi');
-	var message = create_message_for_grid(input);
-	var otp_bits = create_otp_bits(message.bits.length);
-	var g1_bits = xor_bits(message.bits, otp_bits);
 	// TODO 2 FINISH
 	
-	redraw_grid(g,g1_bits, message.width,
+	redraw_grid(g,bits, message.width,
 		    g1_pattern,
 		    g1_color);
     }
     else if(mode == "sixteenseg")
     {
-	var message = create_message_for_seg(input, segchar16);
-	var otp_bits = create_otp_bits(message.bits.length);
-	var g1_bits = xor_bits(message.bits, otp_bits);
-
 	g.clear();
+	
+	var pattern;
+	
+	if(page_number == 1)
+	    pattern = get_pattern(g, g1_pat_path, g1_pat_color);
+	else
+	    pattern = get_pattern(g, g2_pat_path, g2_pat_color);
 
-	var pattern = get_pattern(g, g1_pat_path, g1_pat_color);
-
-	var sc = draw_segchar(g,g1_bits, message.force_wrap,
+	var sc = draw_segchar(g,bits, message.force_wrap,
 			      pattern, segchar16
 			     );
 	var scw = sc.w;
@@ -746,13 +757,15 @@ function print_s1()
     	       });
 
 	//all tables and charts are written directly in the svg.
-	var at = draw_ascii_table_for_seg(g,segchar16, pattern);
-	at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
-
-	var legend_box = create_legend_box(1,g,segchar16, pattern);
+	if(page_number == 1)
+	{
+	    var at = draw_ascii_table_for_seg(g,segchar16, pattern);
+	    at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
+	}
+		
+	var legend_box = create_legend_box(page_number,g,segchar16, pattern);
 	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm});
     }
-    
 }
 
 
@@ -784,14 +797,14 @@ function print_s1()
     Encoded Page 1
     <br>
     <svg width="100%" height="500" id="s1" />
-    <br><input type="button" disabled="true" onclick="print_s1()" id="print_s2" value="Print First Page" />
+    <br><input type="button" disabled="true" onclick="print_page(1)" id="print_s2" value="Print First Page" />
     </td>
     <td>&nbsp;</td>
     <td>
     Encoded Page 2
     <br>
     <svg width="100%" height="500" id="s2" />
-    <br><input type="button" disabled="true" onclick="print_s2()" id="print_s1" value="Print Second Page" />
+    <br><input type="button" disabled="true" onclick="print_page(2)" id="print_s1" value="Print Second Page" />
     </td></tr></table>
     </div>
     <div id="printarea">
