@@ -101,7 +101,7 @@
 	    {
 		var box = arguments[i];
 		//console.log(box);
-		var box = box.transform_to_box(box.w/2 - max_width/2,curr_y);
+		var box = box.transform_to_box({ x: max_width/2 - box.w/2, y: curr_y} );
 		curr_y += box.h;
 		if(box.o)
 		    group.add(box.o);
@@ -129,8 +129,8 @@
 	    for(var i = 1; i < arguments.length; i++)
 	    {
 		var box = arguments[i];
-		var box = arguments[i].transform_to_box(curr_x,box.h/2 - max_height/2);
-		curr_x += box.h;
+		var box = arguments[i].transform_to_box({ x: curr_x, y: max_height/2 - box.h/2 });
+		curr_x += box.w;
 		if(box.o)
 		    group.add(box.o);
 	    }

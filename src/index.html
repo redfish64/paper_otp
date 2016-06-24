@@ -569,18 +569,6 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 //TODO 2 make a list of identical chars and warn about them if the user uses them, or fix them to not be
 //identical
 
-function transform_to_box(e,x1,y1,x2,y2)
-{
-    var bbox = e.getBBox();
-
-    var matrix = new Snap.Matrix();
-    matrix.translate(x1,y1);
-
-    var scale = Math.min((x2-x1)/bbox.w,(y2-y1)/bbox.h);
-    matrix.scale(scale);
-
-    e.transform(matrix);
-}
 
 function get_pattern(g,pathtxt,color)
 {
@@ -590,10 +578,13 @@ function get_pattern(g,pathtxt,color)
 
 function create_legend_text(g,text)
 {
-    var o = g.text(0,0,text).attr("font-size",legend.char_height);
+    var o = g.text(0,legend.char_height,text).attr("font-size",legend.char_height);
 
-    return Align.create_box(g,{o: o,
-			     h:legend.char_height});
+    var b = Align.create_box(g,{o: o,
+				h:legend.char_height});
+    console.log(b);
+
+    return b;
 }
 
 function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text)
@@ -604,7 +595,8 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 
     if(is_draw_coord)
     {
-	var coord = g.path(create_seg_path(0,0,seg.example_coord));
+	var pathtext = create_seg_path(0,0,seg.example_coord);
+	var coord = g.path(pathtext);
 	
 	coord_box = Align.create_box(g,{ o: coord,
 					 w: seg.example_coord_bb.w,
@@ -622,7 +614,8 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 	
     if(is_draw_text)
     {
-	var text = g.text(0,0,text).attr("font-size",legend.ex_on_off_text_height);
+	var text = g.text(0,legend.ex_on_off_text_height,text).
+	    attr("font-size",legend.ex_on_off_text_height);
 	
 	text_box = Align.create_box(g,{ o: text,
 					h: seg.ex_on_off_text_height,
@@ -640,9 +633,10 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 }
 
 
-function create_legend_seg_bit_char(g, seg, bitmap)
+function create_legend_seg_bit_char(g, seg, pattern, bitmap)
 {
-    var o = create_seg_bit_char(0,0,seg, bitmap);
+    var pathtxt = create_seg_bit_char(0,0,seg, bitmap);
+    var o = g.path(pathtxt).attr({fill: pattern});
 
     return Align.create_box(g,{ o: o,
 		       w: seg.width,
@@ -654,26 +648,39 @@ function create_legend_seg_bit_char(g, seg, bitmap)
 function create_legend_box(page_number, //1 or 2
 		     g,seg,pattern)
 {
+    var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
+    var group_spacer = Align.create_box(g, { w: legend.group_hgap, h: 0});
+    
     var legend_box = Align.halign
     (g,
-	create_legend_text(g,"Legend:", page_number == 1),
-	create_example_coord(g,seg,pattern, page_number==1, "on", page_number == 1),
-	create_example_coord(g,seg,pattern, page_number==2, "on", page_number == 1),
-	create_example_coord(g,seg,pattern, false, "off", page_number == 1),
-	create_example_coord(g,seg,pattern, true, "off", page_number == 1),
-	create_legend_text(g,"Example:"),
-	create_legend_seg_bit_char(g,seg,
-				 page_number == 1 ?
-				 legend.example_bitmap1 :
-				 legend.example_bitmap2
-				),
-	create_legend_text(g,"="),
-	create_legend_seg_bit_char(g,seg,
+     create_legend_text(g,"Legend:", page_number == 1),
+     item_spacer,
+     create_example_coord(g,seg,pattern, page_number==1, "on", page_number == 1),
+     item_spacer,
+     create_example_coord(g,seg,pattern, page_number==2, "on", page_number == 1),
+     item_spacer,
+     create_example_coord(g,seg,pattern, false, "off", page_number == 1),
+     item_spacer,
+     create_example_coord(g,seg,pattern, true, "off", page_number == 1),
+     group_spacer,
+     create_legend_text(g,"Example:"),
+     item_spacer,
+     create_legend_seg_bit_char(g,seg, pattern,
+				   page_number == 1 ?
+				   legend.example_bitmap1 :
+				   legend.example_bitmap2
+				  ),
+     item_spacer,
+     create_legend_text(g,"="),
+     item_spacer,
+     create_legend_seg_bit_char(g,seg, pattern,
 				 legend.example_bitmap1 ^
 				 legend.example_bitmap2
 				),
-	create_legend_text(g,"="),
-	create_legend_text(g,"K")
+     item_spacer,
+     create_legend_text(g,"="),
+     item_spacer,
+     create_legend_text(g,"K")
     );
 
     return legend_box;
