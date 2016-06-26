@@ -34,6 +34,9 @@
 		box.h = p.h;
 	    }
 
+	    box.x = p.x || 0;
+	    box.y = p.y || 0;
+
 	    box.o = p.o;
 
 	    box.transform_to_box = 

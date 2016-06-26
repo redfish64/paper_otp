@@ -71,6 +71,13 @@ var legend =
 	example_char: "K"
     };
 
+var instructions =
+{
+    height_perc: .30, 
+    text: [ "Place second page underneath and shine a light from behind to decipher code.",
+	    "Place first page on top and shine a light from behind to decipher code." ]
+}
+
 function path_rect(x,y,w,h)
 {
     return "M "+x+" "+y+
@@ -428,6 +435,7 @@ function create_otp_bits(length)
 {
     var bits = [];
     bits[length-1] = false; //prealloc
+    Math.seedrandom("FIXME!"); //TODO get data from OTP
     for(i = 0; i < length; i++)
 	bits[i] = (Math.random() >= .5);
     //0;
@@ -475,12 +483,12 @@ function input_changed()
 	    //console.log(g1.bits);
 	    
 	    redraw_grid(g1,g1_bits, message.width,
-			g1_pattern,
-			g1_color
+			g1_pat_path,
+			g1_pat_color
 		       );
 	    redraw_grid(g2,g2_bits, message.width,
-			g2_pattern,
-			g2_color);
+			g2_pat_path,
+			g2_pat_color);
 	}
 	else if(mode == "sixteenseg")
 	{
@@ -698,6 +706,11 @@ function create_legend_box(page_number, //1 or 2
     return legend_box;
 }
 
+function create_instructions(page_number,g,x,y,scw)
+{
+    
+}
+
 function print_page(page_number)
 {
     document.getElementById("mainarea").style.display = "none";
@@ -762,10 +775,22 @@ function print_page(page_number)
 	    var at = draw_ascii_table_for_seg(g,segchar16, pattern);
 	    at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
 	}
+
+	var ins_height = instructions.height_perc * bm;
 		
 	var legend_box = create_legend_box(page_number,g,segchar16, pattern);
-	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm});
+	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm - ins_height});
+
+	//create instructions at bottom
+	var ibox = create_legend_text(g,instructions.text[page_number-1], true).
+	    transform_to_box({ x: 0, y: sch+bm - ins_height,
+			       w: scw, h: ins_height });
     }
+
+    window.print();
+    document.getElementById("printarea").style.display = "none";
+    document.getElementById("mainarea").style.display = "block";
+
 }
 
 
@@ -773,6 +798,17 @@ function print_page(page_number)
 
 </script>
 
+    <style>
+      textarea {
+      width: 90%;
+      }
+      .print_button {
+      float: right
+      }
+      .encoded_page {
+      padding: 40px
+      }
+    </style>
 
 </head>
 
@@ -780,31 +816,31 @@ function print_page(page_number)
     <div id="mainarea">
     <p>Introduction: bla bla bla</p>
     <table>
-    <tr>
-    <td>Message
-    <td><textarea autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
-    <td>OTP
-    <td><textarea></textarea>
-    <td><input type="button" value="Generate OTP">
-    </tr>
     <tr><td colspan="4">
     <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment
     <input type="radio" name="mode" value="grid" onclick="input_changed()">Grid
+    </td></tr>
+    <tr>
+    <td>Message
+    <td width="50%"><textarea rows="5" placeholder="Enter message" autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
+    <td>OTP
+    <td width="50%"><textarea rows="5" placeholder="Enter hexidecimal data or click 'Generate OTP'"></textarea>
+    <td><input type="button" value="Generate OTP">
+    </tr>
     </table>
     <table>
     <tr>
-    <td>
-    Encoded Page 1
+    <td class="encoded_page">
+    Encoded Page 1 <input class="print_button" type="button" disabled="true" onclick="print_page(1)" id="print_s2" value="Print!" />
     <br>
     <svg width="100%" height="500" id="s1" />
-    <br><input type="button" disabled="true" onclick="print_page(1)" id="print_s2" value="Print First Page" />
+    <br>
     </td>
-    <td>&nbsp;</td>
-    <td>
-    Encoded Page 2
+    <td class="encoded_page">
+    Encoded Page 2 <input class="print_button" type="button" disabled="true" onclick="print_page(2)" id="print_s1" value="Print!" />
     <br>
     <svg width="100%" height="500" id="s2" />
-    <br><input type="button" disabled="true" onclick="print_page(2)" id="print_s1" value="Print Second Page" />
+    <br>
     </td></tr></table>
     </div>
     <div id="printarea">

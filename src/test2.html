@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+  <head>
+    <title>onload test</title>
+    <script src="snap.svg-min.js"> </script>
+    <script src="align.js"> </script>
+    <script>
+
+var page_scale = 7.5/10; //half inch margins of 8.5x11
+
+var hgap = 5;
+var vgap = 5;
+
+function reverse_pattern(g, p)
+{
+    var group = g.g(g.rect(0,0,1,1),p.clone().attr("fill","#FFFFFF"));
+
+    return group;
+}
+
+
+function create_patterns(g,pat1,pat2, scales)
+{
+    console.log(p1,p2);
+    var patterns = [[],[]];
+    for(var i = 0; i < pat1.length; i++)
+    {
+	var p1 = pat1[i];
+	var p2 = pat2[i];
+	
+	if(p1 == null)
+	{
+	    p1 = reverse_pattern(g,p2);
+	}
+	else
+	    if(p2 == null)
+	{
+	    p2 = reverse_pattern(g,p1);
+	}
+	
+	p1.toDefs();
+	p2.toDefs();
+
+	for(var si = 0; si < scales.length; si++)
+	{
+	    var s = scales[si];
+	    console.log(s,i*scales.length+si);
+	    
+	    patterns[0][i*scales.length+si] = p1.transform("scale("+s+")").toPattern(0,0,s,s);
+	    patterns[1][i*scales.length+si] = p2.transform("scale("+s+")").toPattern(0,0,s,s);
+
+	    p1 = p1.clone();
+	    p2 = p2.clone();
+	}
+    }
+
+    console.log("p");
+    console.log(patterns);
+    return patterns;
+}
+
+function create_seg(g,pn, pat, is_on,coord_pathtext, scale)
+{
+    var coord = g.path(coord_pathtext);
+    if(is_on)
+	coord = coord.transform("scale("+scale+")").
+	attr({ fill: pat });
+    else
+	coord = coord.transform("scale("+scale+")").
+	attr({ fill: "#FFFFFF"}); 
+//	attr({ fill: "#000000"});
+
+    var box = Align.create_box(g, { o: coord });
+
+    return box;
+
+}
+
+function scale(g,o,scale_amount)
+{
+    var grp = g.group(o);
+
+    grp.transform("scale("+scale_amount+")").toDefs();
+    return grp;
+}
+
+function draw_page(g,pn) {
+    var patbasis1 =
+	[
+	    g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
+	    g.path("M 0 0 L 0 0.5 L 0.5 0.5 L 0.5 0 L 0 0 M 0.5 0.5 L 1.0 0.5 L 1.0 1.0 L 0.5 1.0 L 0.5 0.5"),
+	    g.circle(.5,.5,.4),
+	    null,
+	    g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
+	    g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
+	];
+    var patbasis2 =
+	[
+	    null,
+	    null,
+	    null,
+	    g.circle(.5,.5,.4),
+	    g.path("M 1 0 L 1 0.5 L 0.5 1 L 0 1 L 1 0 M 0.5 0 L 0 0.5 L 0 0 L 0.5 0"),
+	    null,
+	];
+    
+    var pattern_scales = [2,1];
+    
+    var p1_colors =
+	[
+	    "#808080",
+	    // "#808080",
+	    // "#D0D0D0",
+	    // "#D0D0D0",
+	    // "#FFFFFF"
+	]
+    
+    var p2_colors = [
+	"#D0D0D0",
+	// "#FFFFF",
+	// "#D0D0D0",
+	// "#FFFFFF",
+	// "#FFFFFF"
+    ];
+    
+    var sizes = [16,8,4];
+    
+    var coord = [1, 8, 0, 7, 0, 1, 1, 0, 2, 1, 2, 7];
+    var coord_path = "M "+coord.join(" ")+" "+coord[0]+" "+coord[1];
+
+    var patterns = create_patterns(g, patbasis1, patbasis2, pattern_scales);
+
+    var curr_x = 0;
+    var curr_y = 0;
+
+    // var rect_size = 50;
+    
+    // for(var i = 0; i < patterns[0].length; i++)
+    // {
+    // 	console.log(patterns[0]);
+    // 	g.rect(curr_x, curr_y, rect_size, rect_size).
+    // 	    attr({fill:
+    // 		  patterns[0][i]});
+    // 	curr_x += rect_size;
+    // }
+
+    // curr_x = 0;
+    // curr_y += rect_size;
+    // for(var i = 0; i < patterns[1].length; i++)
+    // {
+    // 	console.log(patterns[1]);
+    // 	g.rect(curr_x, curr_y, rect_size, rect_size).
+    // 	    attr({fill:
+    // 		  patterns[1][i]});
+    // 	curr_x += rect_size;
+    // }
+
+    // curr_y += rect_size;
+    // curr_x=0;
+
+    var r = 0, c = 0;
+
+    var max_row_height = 0;
+
+    var max_width = 0;
+
+    var pat_block_width = 0;
+    
+    var cols = 0;
+    for(var pati = 0; pati < patterns[0].length; pati ++)
+    {
+	for(var si = 0; si < sizes.length; si++)
+	{
+	    //both on, front on, back on
+	    for(var oi = 1; oi < 4; oi++)
+	    {
+		var box;
+		if(pn == 1)
+		    box = create_seg(g,pn, patterns[0][pati],
+				     (oi & 1) != 0,
+				     coord_path,
+				     sizes[si]
+				    );
+		else
+		    box = create_seg(g,pn, patterns[1][pati],
+				     (oi & 2) != 0,
+				     coord_path,
+				     sizes[si]
+				    );
+		
+		var b2 = box.transform_to_box({ x: curr_x, y: curr_y });
+		curr_x += b2.w + hgap;
+		max_row_height = Math.max(max_row_height, b2.h);
+		max_width = Math.max(max_width, curr_x);
+		
+		//console.log(b2);
+		//g.rect(b2.x,b2.y,b2.w,b2.h);
+	    }
+	}
+	
+	//now that we went through a whole pattern, we can kind of figure out how big the cols
+	//should be to fit it all on a page
+	if(cols == 0)
+	{
+	    cols = Math.round(Math.sqrt(max_row_height*patterns[0].length*page_scale/curr_x));
+	    console.log("cols is "+cols);
+	    console.log(max_row_height,patterns[0].length,page_scale,curr_x);
+	}
+
+	c++;
+	if(c >= cols)
+	{
+	    c = 0;
+	    r++;
+	    
+	    curr_x = 0;
+	    curr_y += max_row_height + vgap;
+	}
+    }
+
+    g.attr({viewBox:[0,0,max_width,curr_y].join(' '),
+    		 	   //preserveAspectRatio: "none"
+    			  });
+}
+
+function load() {
+    var g = Snap("#s");
+
+    draw_page(g,1);
+}
+
+window.onload = load;
+</script>
+    </head>
+    <body>
+    <svg id="s" width="500" height="666"></svg>
+    </body>
+    </html>
+
