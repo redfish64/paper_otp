@@ -4,6 +4,7 @@
     <title>onload test</title>
     <script src="snap.svg-min.js"> </script>
     <script src="align.js"> </script>
+    <script src="sixteenSeg.js"></script>
     <script>
 
 var page_scale = 7.5/10; //half inch margins of 8.5x11
@@ -19,21 +20,22 @@ function reverse_pattern(g, p)
 }
 
 
-function create_patterns(g,pat1,pat2, scales)
+function create_patterns(g,pat1,pat2, colors1, colors2, scales)
 {
-    console.log(p1,p2);
     var patterns = [[],[]];
+
+    var outi = 0;
+    
     for(var i = 0; i < pat1.length; i++)
-    {
+    {	
 	var p1 = pat1[i];
 	var p2 = pat2[i];
-	
+
 	if(p1 == null)
 	{
 	    p1 = reverse_pattern(g,p2);
 	}
-	else
-	    if(p2 == null)
+	else if(p2 == null)
 	{
 	    p2 = reverse_pattern(g,p1);
 	}
@@ -41,30 +43,81 @@ function create_patterns(g,pat1,pat2, scales)
 	p1.toDefs();
 	p2.toDefs();
 
-	for(var si = 0; si < scales.length; si++)
+	for(var ci = 0; ci < colors1.length; ci++)
 	{
-	    var s = scales[si];
-	    console.log(s,i*scales.length+si);
-	    
-	    patterns[0][i*scales.length+si] = p1.transform("scale("+s+")").toPattern(0,0,s,s);
-	    patterns[1][i*scales.length+si] = p2.transform("scale("+s+")").toPattern(0,0,s,s);
+	    var c1 = colors1[ci];
+	    var c2 = colors2[ci];
+	
+	    for(var si = 0; si < scales.length; si++)
+	    {
+		var s = scales[si];
+		
+		p1 = p1.clone().attr( { fill: c1 });
+		p2 = p2.clone().attr( { fill: c2 });
 
-	    p1 = p1.clone();
-	    p2 = p2.clone();
+		patterns[0][outi] =
+		    p1.transform("scale("+s+")").toPattern(0,0,s,s);
+		
+		patterns[1][outi] =
+		    p2.transform("scale("+s+")").toPattern(0,0,s,s);
+
+		outi++;
+		
+	    }
 	}
     }
-
-    console.log("p");
-    console.log(patterns);
+    
     return patterns;
 }
 
-function create_seg(g,pn, pat, is_on,coord_pathtext, scale)
+
+function scale(g,o,scale_amount)
 {
-    var coord = g.path(coord_pathtext);
+    var grp = g.group(o);
+
+    grp.transform("scale("+scale_amount+")").toDefs();
+    return grp;
+}
+
+
+function create_seg_path(x,y,coords)
+{
+    var path = "M ";
+    for(var i = 0; i < coords.length; i+=2)
+    {
+	path += (x+coords[i])+" "+(y+coords[i+1])+" ";
+    }
+    path += (x+coords[0])+" "+(y+coords[1])+" ";
+
+    return path;
+}
+
+function create_seg_bit_char(x,y,seg,bitval)
+{
+    var path = "";
+    for(var bit = 0; bit < seg.bit_count; bit++)
+    {
+	var on = (1&(bitval >> bit)) == 1;
+	if(on) path += create_seg_path(x,y,seg.coords[bit]);
+    }
+
+    return path;
+}
+
+function create_seg_ascii_char(x,y,seg,ascii_index)
+{
+    return create_seg_bit_char(x,y,seg,seg.ascii_map[ascii_index]);
+}
+
+
+function create_seg(g,pn,
+		    //pat,
+		    is_on,coord_pathtext, scale)
+{
+    var coord = g.path(create_seg_ascii_char(0,0,segchar16,Math.floor(Math.random()*(127-33)+33)));
     if(is_on)
-	coord = coord.transform("scale("+scale+")").
-	attr({ fill: pat });
+	coord = coord.transform("scale("+scale+")");
+	//attr({ fill: pat });
     else
 	coord = coord.transform("scale("+scale+")").
 	attr({ fill: "#FFFFFF"}); 
@@ -76,15 +129,9 @@ function create_seg(g,pn, pat, is_on,coord_pathtext, scale)
 
 }
 
-function scale(g,o,scale_amount)
-{
-    var grp = g.group(o);
-
-    grp.transform("scale("+scale_amount+")").toDefs();
-    return grp;
-}
-
 function draw_page(g,pn) {
+    g.clear();
+
     var patbasis1 =
 	[
 	    g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
@@ -109,18 +156,18 @@ function draw_page(g,pn) {
     var p1_colors =
 	[
 	    "#808080",
-	    // "#808080",
-	    // "#D0D0D0",
-	    // "#D0D0D0",
-	    // "#FFFFFF"
+	    "#808080",
+	    "#404040",
+	    "#404040",
+	    "#000000"
 	]
     
     var p2_colors = [
-	"#D0D0D0",
-	// "#FFFFF",
-	// "#D0D0D0",
-	// "#FFFFFF",
-	// "#FFFFFF"
+	"#404040",
+	"#000000",
+	"#404040",
+	"#000000",
+	"#000000"
     ];
     
     var sizes = [16,8,4];
@@ -128,7 +175,7 @@ function draw_page(g,pn) {
     var coord = [1, 8, 0, 7, 0, 1, 1, 0, 2, 1, 2, 7];
     var coord_path = "M "+coord.join(" ")+" "+coord[0]+" "+coord[1];
 
-    var patterns = create_patterns(g, patbasis1, patbasis2, pattern_scales);
+    var patterns = create_patterns(g, patbasis1, patbasis2, p1_colors, p2_colors, pattern_scales);
 
     var curr_x = 0;
     var curr_y = 0;
@@ -169,6 +216,8 @@ function draw_page(g,pn) {
     var cols = 0;
     for(var pati = 0; pati < patterns[0].length; pati ++)
     {
+	var group = g.g();
+	
 	for(var si = 0; si < sizes.length; si++)
 	{
 	    //both on, front on, back on
@@ -176,13 +225,15 @@ function draw_page(g,pn) {
 	    {
 		var box;
 		if(pn == 1)
-		    box = create_seg(g,pn, patterns[0][pati],
+		    box = create_seg(g,pn,
+				     //patterns[0][pati],
 				     (oi & 1) != 0,
 				     coord_path,
 				     sizes[si]
 				    );
 		else
-		    box = create_seg(g,pn, patterns[1][pati],
+		    box = create_seg(g,pn,
+				     //patterns[1][pati],
 				     (oi & 2) != 0,
 				     coord_path,
 				     sizes[si]
@@ -192,19 +243,23 @@ function draw_page(g,pn) {
 		curr_x += b2.w + hgap;
 		max_row_height = Math.max(max_row_height, b2.h);
 		max_width = Math.max(max_width, curr_x);
+
+		group.add(b2.o);
 		
 		//console.log(b2);
 		//g.rect(b2.x,b2.y,b2.w,b2.h);
 	    }
 	}
+
+	group.attr({ fill: patterns[pn-1][pati] });
 	
 	//now that we went through a whole pattern, we can kind of figure out how big the cols
 	//should be to fit it all on a page
 	if(cols == 0)
 	{
 	    cols = Math.round(Math.sqrt(max_row_height*patterns[0].length*page_scale/curr_x));
-	    console.log("cols is "+cols);
-	    console.log(max_row_height,patterns[0].length,page_scale,curr_x);
+	    // console.log("cols is "+cols);
+	    // console.log(max_row_height,patterns[0].length,page_scale,curr_x);
 	}
 
 	c++;
@@ -223,17 +278,25 @@ function draw_page(g,pn) {
     			  });
 }
 
+var pn =2;
+
 function load() {
+    sclick();
+}
+
+function sclick()
+{
+    pn = 3-pn;
     var g = Snap("#s");
 
-    draw_page(g,1);
+    draw_page(g,pn);
 }
 
 window.onload = load;
 </script>
     </head>
     <body>
-    <svg id="s" width="500" height="666"></svg>
+    <svg id="s" width="500" height="666" onclick="sclick();" ></svg>
     </body>
     </html>
 

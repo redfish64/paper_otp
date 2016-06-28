@@ -25,15 +25,23 @@ var otp_bits = [];
 var font = console_font_5x8;
 
 var min_force_wrap = 5;
+var max_force_wrap = 100;
 var page_ratio = 7.5/10; //8.5x11 with half inch margins
 
-//pattern and color for code in first page
-var g1_pat_path = "M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0";
-var g1_pat_color = "#808080";
+//pattern color for code in first page
+var g1_pat_color = "#404040";
 
-//pattern and color for code in second page
-var g2_pat_path = "M 0 0 L 0.5 0 L 1 .5 L 1 1 L 0 0 M 0 0.5 L 0.5 1 L 0 1 L 0 0.5";
+//pattern color for code in second page
 var g2_pat_color = "#000000";
+
+var pat_scales = [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+];
 
 //for printing, the right margin is used for an ascii to value table
 var right_margin_perc = .15;
@@ -196,7 +204,7 @@ function create_seg_ascii_char(x,y,seg,ascii_index)
     return create_seg_bit_char(x,y,seg,seg.ascii_map[ascii_index]);
 }
 
-function draw_segchar(g,bits,chars_per_line,pattern, segchar)
+function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 {
     if(bits.length == 0 || chars_per_line == 0)
 	return;
@@ -209,6 +217,8 @@ function draw_segchar(g,bits,chars_per_line,pattern, segchar)
     
     var path="";
 
+    var group = g.g();
+    
     for(var r=0;r<chars_per_col;r++)
     {
     	for(var c=0;c<chars_per_line;c++)
@@ -225,15 +235,23 @@ function draw_segchar(g,bits,chars_per_line,pattern, segchar)
     		}
     	    }
     	}
+	
+	var pi = r % patterns.length;
+	var pattern = patterns[pi];
+
+	var sc = g.path(path);
+	sc.attr({ fill: pattern });
+
+	g.add(sc);
+
+	path="";
     }
 
     //console.log(path);
-    var sc = g.path(path);
-    sc.attr({ fill: pattern });
 
     //we return the width and height explicitely (rather than letting the user run getBBox() on
     //sc, because getBBox() is kind of slow.
-    return { elem: sc,
+    return { elem: g,
 	     w: width,
 	     h: height
 	   };
@@ -259,13 +277,14 @@ function calc_rows(t, force_wrap)
 	var c = t.charAt(i);
 	if(c == '\n')
 	{
-	    rows++;
+	    if(col != 0)
+		rows++;
 	    col = 0;
 	}
 	else
 	{
 	    col++;
-	    if(col >= force_wrap)
+	    if(col > force_wrap)
 	    {
 		rows++;
 		col=0;
@@ -282,14 +301,22 @@ function choose_force_wrap(t, font_width_over_height)
     
     //We want to maximize the dpi considering a standard size page (8.5 x 11), the
     //font width and height, and assuming square pixels
-    for(i = min_force_wrap;; i++)
+    var last_rows = 0;
+    for(i = max_force_wrap;i>=min_force_wrap; i--)
     {
 	var rows = calc_rows(t,i);
-	if(i * font_width_over_height / rows > page_ratio)
+
+	//if we haven't gained anymore rows by reducing the force wrap, then
+	//we keep going. Otherwise, if we go below the page_ratio, we stop
+	if(rows != last_rows && i * font_width_over_height / rows < page_ratio)
 	    break;
+
+	last_rows = rows;
     }
+
+    console.log("force wrap %s %d %d %d", t, i+1, calc_rows(t,i), calc_rows(t,i+1));
     
-    return i;
+    return i+1;
 }
 
 function create_message_for_grid(t)
@@ -357,7 +384,7 @@ function create_message_for_grid(t)
 	}
 
 	col++;
-	if(col >= message.force_wrap)
+	if(col > message.force_wrap)
 	{
 	    col = 0;
 	    row++;
@@ -386,8 +413,11 @@ function create_message_for_seg(t,seg)
 	var c = t.charCodeAt(i);
 	if(c == 10) //newline
 	{
-	    col = 0;
-	    row++;
+	    if(col != 0)
+	    {
+		col = 0;
+		row++;
+	    }
 	    continue;
 	}
 
@@ -500,9 +530,9 @@ function input_changed()
 	    //console.log(message);
 	    
 	    g1.clear();
-	    var g1_pattern = get_pattern(g1, g1_pat_path, g1_pat_color);
+	    var g1_patterns = get_patterns(g1, g1_pat_color, 1);
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
-			   g1_pattern, segchar16
+			   g1_patterns, segchar16
 				  );
 
 	    if(sc1)
@@ -512,9 +542,9 @@ function input_changed()
 		
 		
 	    g2.clear();
-	    var g2_pattern = get_pattern(g2, g2_pat_path, g2_pat_color);
+	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
-				   g2_pattern,segchar16);
+				   g2_patterns,segchar16);
 	    if(sc2)
 		g2.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
     		 	   //preserveAspectRatio: "none"
@@ -583,25 +613,70 @@ function draw_ascii_table_for_seg(g,seg,pattern)
     return Align.create_box(g,{ o: group });
 }
 
-//TODO 2 make a list of identical chars and warn about them if the user uses them, or fix them to not be
-//identical
-
-
-function get_pattern(g,pathtxt,color)
+function reverse_pattern(g, p)
 {
-    var patbasis = g.path(pathtxt).attr({ fill: color });
-    return patbasis.toPattern(0,0,1,1);
+    var group = g.g(g.rect(0,0,1,1),p.clone().attr("fill","#FFFFFF"));
+
+    return group;
+}
+
+function get_patterns(g,color, pn)
+{
+    var pat1 = [
+	g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
+	g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
+	g.circle(.5,.5,.4),
+	null,
+	g.path("M 0 0 L 0 0.5 L 0.5 0.5 L 0.5 0 L 0 0 M 0.5 0.5 L 1.0 0.5 L 1.0 1.0 L 0.5 1.0 L 0.5 0.5"),
+	g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
+    ];
+
+    var pat2 = [
+	g.path("M 1 0 L 1 0.5 L 0.5 1 L 0 1 L 1 0 M 0.5 0 L 0 0.5 L 0 0 L 0.5 0"),
+	null,
+	null,
+	g.circle(.5,.5,.4),
+	null,
+	null,
+    ];
+	     
+    var patterns = [];
+
+    for(var i = 0; i < pat1.length; i++)
+    {	
+	var p1 = pat1[i];
+	var p2 = pat2[i];
+	
+	if(p1 == null)
+	{
+	    p1 = reverse_pattern(g,p2);
+	}
+	else if(p2 == null)
+	{
+	    p2 = reverse_pattern(g,p1);
+	}
+	
+	p1.toDefs();
+	p2.toDefs();
+
+	var raw_pat = pn == 1 ? p1 : p2;
+    
+	var patbasis = raw_pat.attr({ fill: color }).transform("scale("+pat_scales[i]+")");
+	patterns[i] = patbasis.toPattern(0,0,pat_scales[i],pat_scales[i]);
+    }
+
+    return patterns;
 }
 
 function create_legend_text(g,text, is_visible)
 {
-    console.log("visible? %s",is_visible);
+    //console.log("visible? %s",is_visible);
     var o = g.text(0,legend.char_height,text).attr("font-size",legend.char_height)
 	.attr("visibility", is_visible? "visible" : "hidden");
 
     var b = Align.create_box(g,{o: o,
 				h:legend.char_height});
-    console.log(b);
+    //console.log(b);
 
     return b;
 }
@@ -632,35 +707,32 @@ function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text
 	    h: seg.example_coord_bb.h}).
 	    transform_to_box({ h: legend.ex_ind_coord_height});
 	
-    if(is_draw_text)
-    {
-	var text = g.text(0,legend.ex_on_off_text_height,text).
-	    attr("font-size",legend.ex_on_off_text_height);
+    var text = g.text(0,legend.ex_on_off_text_height,text).
+	attr("font-size",legend.ex_on_off_text_height).
+	attr("fill", is_draw_text ? "#000000" : "#FFFFFF" );
+
 	
-	text_box = Align.create_box(g,{ o: text,
-					h: legend.ex_on_off_text_height,
-				      });
-    }
-    else
-	//create an empty box to represent the blank area
-	text_box = Align.create_box(g,{
-	    w: 0,
-	    h: legend.ex_on_off_text_height});
-    
+    text_box = Align.create_box(g,{ o: text,
+				    h: legend.ex_on_off_text_height,
+				  });
+
     return Align.valign(g,coord_box,
 			Align.create_box(g, { w:0, h: legend.ex_vgap}),
 			text_box);
 }
 
 
-function create_legend_seg_bit_char(g, seg, pattern, bitmap)
+function create_legend_seg_bit_char(g, seg, pattern, bitmap, is_visible)
 {
     var pathtxt = create_seg_bit_char(0,0,seg, bitmap);
     var o = g.path(pathtxt).attr({fill: pattern});
 
+    if(!is_visible)
+	o.attr({ fill: "#FFFFFF" });
+
     return Align.create_box(g,{ o: o,
-		       w: seg.width,
-		       h: seg.height
+				w: seg.width,
+				h: seg.height
 		     }).transform_to_box({ h: legend.seg_height});
 }
 
@@ -686,16 +758,18 @@ function create_legend_box(page_number, //1 or 2
      create_legend_text(g,"Example:", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
-     				   page_number == 1 ?
-     				   legend.example_bitmap1 :
-     				   legend.example_bitmap2
+     				page_number == 1 ?
+     				legend.example_bitmap1 :
+     				legend.example_bitmap2,
+				true
      				  ),
      item_spacer,
      create_legend_text(g,"=", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
      				 legend.example_bitmap1 ^
-     				 legend.example_bitmap2
+     				legend.example_bitmap2,
+				page_number==1
      				),
      item_spacer,
      create_legend_text(g,"=", page_number == 1),
@@ -704,11 +778,6 @@ function create_legend_box(page_number, //1 or 2
     );
 
     return legend_box;
-}
-
-function create_instructions(page_number,g,x,y,scw)
-{
-    
 }
 
 function print_page(page_number)
@@ -745,15 +814,15 @@ function print_page(page_number)
     {
 	g.clear();
 	
-	var pattern;
+	var patterns;
 	
 	if(page_number == 1)
-	    pattern = get_pattern(g, g1_pat_path, g1_pat_color);
+	    patterns = get_patterns(g, g1_pat_color, 1);
 	else
-	    pattern = get_pattern(g, g2_pat_path, g2_pat_color);
+	    patterns = get_patterns(g, g2_pat_color, 2);
 
 	var sc = draw_segchar(g,bits, message.force_wrap,
-			      pattern, segchar16
+			      patterns, segchar16
 			     );
 	var scw = sc.w;
 	var sch = sc.h;
@@ -772,13 +841,13 @@ function print_page(page_number)
 	//all tables and charts are written directly in the svg.
 	if(page_number == 1)
 	{
-	    var at = draw_ascii_table_for_seg(g,segchar16, pattern);
+	    var at = draw_ascii_table_for_seg(g,segchar16, patterns[0]);
 	    at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
 	}
 
 	var ins_height = instructions.height_perc * bm;
 		
-	var legend_box = create_legend_box(page_number,g,segchar16, pattern);
+	var legend_box = create_legend_box(page_number,g,segchar16, patterns[0]);
 	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm - ins_height});
 
 	//create instructions at bottom
@@ -833,13 +902,13 @@ function print_page(page_number)
     <td class="encoded_page">
     Encoded Page 1 <input class="print_button" type="button" disabled="true" onclick="print_page(1)" id="print_s2" value="Print!" />
     <br>
-    <svg width="100%" height="500" id="s1" />
+    <svg width="400" height="500" id="s1" />
     <br>
     </td>
     <td class="encoded_page">
     Encoded Page 2 <input class="print_button" type="button" disabled="true" onclick="print_page(2)" id="print_s1" value="Print!" />
     <br>
-    <svg width="100%" height="500" id="s2" />
+    <svg width="400" height="500" id="s2" />
     <br>
     </td></tr></table>
     </div>
