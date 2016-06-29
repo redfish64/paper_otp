@@ -44,9 +44,9 @@ var pat_scales = [
 ];
 
 //for printing, the right margin is used for an ascii to value table
-var right_margin_perc = .15;
+var right_margin_perc = .3;
 //for printing, the bottom margin is used to help the user understand the results
-var bottom_margin_perc = .1;
+var bottom_margin_perc = .3;
 
 //draw_ascii_table_for_seg
 var ascii =
@@ -901,7 +901,7 @@ function create_legend_seg_bit_char(g, seg, pattern, bitmap, is_visible)
 }
 
 
-function create_legend_box(page_number, //1 or 2
+function create_legend_box1(page_number, //1 or 2
 		     g,seg,pattern)
 {
     var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
@@ -917,8 +917,18 @@ function create_legend_box(page_number, //1 or 2
      item_spacer,
      create_example_coord(g,seg,pattern, false, "off", page_number == 1),
      item_spacer,
-     create_example_coord(g,seg,pattern, true, "off", page_number == 1),
-     group_spacer,
+     create_example_coord(g,seg,pattern, true, "off", page_number == 1));
+
+    return legend_box;
+}
+
+function create_legend_box2(page_number, //1 or 2
+			    g,seg,pattern)
+{
+    var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
+
+    var legend_box2 = Align.halign
+    (g,
      create_legend_text(g,"Example:", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
@@ -940,8 +950,8 @@ function create_legend_box(page_number, //1 or 2
      item_spacer,
      create_legend_text(g,legend.example_char, page_number == 1)
     );
-
-    return legend_box;
+    
+    return legend_box2;
 }
 
 function show_page(name)
@@ -1018,10 +1028,15 @@ function print_page(page_number)
 	}
 
 	var ins_height = instructions.height_perc * bm;
+	var legend_height1 = (bm - ins_height) * .5;
+	var legend_height2 = legend_height1;
 		
-	var legend_box = create_legend_box(page_number,g,segchar, patterns[0]);
-	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm - ins_height});
-
+	var legend_box1 = create_legend_box1(page_number,g,segchar, patterns[0]);
+	legend_box1.transform_to_box({x: 0, y: sch, w: scw, h: legend_height1});
+	
+	var legend_box2 = create_legend_box2(page_number,g, segchar, patterns[0]);
+	legend_box2.transform_to_box({x: 0, y: sch+legend_height1, w: scw, h: legend_height2})
+	
 	//create instructions at bottom
 	var ibox = create_legend_text(g,instructions.text[page_number-1], true).
 	    transform_to_box({ x: 0, y: sch+bm - ins_height,
@@ -1058,13 +1073,15 @@ function print_page(page_number)
       display: inline;
       white-space: nowrap;
       }
+      .copyright { font-size: 80%; clear: both; padding: 5px 0; }
     </style>
 
 </head>
 
     <body>
     <div id="mainarea">
-    <p>Introduction: bla bla bla</p>
+      <p>Creates paper based <a href="https://en.wikipedia.org/wiki/One-time_pad">one time pad</a> encoded messages which can viewed using only the paper and a light source.</p>
+      <p>If a segment is in either the first page or the second page, but not both, it is considered
     <table>
     <tr><td colspan="4">
     <!-- <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment -->
@@ -1093,6 +1110,11 @@ function print_page(page_number)
     <svg width="400" height="500" id="s2" />
     <br>
     </td></tr></table>
+    <div class="copyright">
+      <span>Copyright rareventure.com.</span>
+      <span>JavaScript copyrights are included in the source.</span>
+      <span>No warranty.</span>
+    </div>
     </div>
     <div id="printarea">
     <svg width="100%" height="100%" id="p" />
@@ -1100,7 +1122,7 @@ function print_page(page_number)
     <div id="generatearea">
     <h3><div id="paranoia_perc"></div></h3>
     </div>
-</body>
+    </body>
     
 </html>
     
