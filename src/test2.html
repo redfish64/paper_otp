@@ -120,7 +120,7 @@ function create_seg(g,pn,
 	//attr({ fill: pat });
     else
 	coord = coord.transform("scale("+scale+")").
-	attr({ fill: "#FFFFFF"}); 
+	attr({ fill: "#FFFFFF", stroke: "#000000", strokeWidth: "0.3px"}); 
 //	attr({ fill: "#000000"});
 
     var box = Align.create_box(g, { o: coord });

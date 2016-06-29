@@ -215,12 +215,13 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 
     //console.log("w %d chars_per_col %f chars_per_line %d height %d",width,chars_per_col,chars_per_line, height);
     
-    var path="";
-
     var group = g.g();
     
     for(var r=0;r<chars_per_col;r++)
     {
+	var path="";
+	var off_path=""; //the bits that aren't highlighted
+
     	for(var c=0;c<chars_per_line;c++)
     	{
     	    var x = c*(segchar.width+segchar.hgap);
@@ -233,6 +234,8 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
     		{
     		    path += create_seg_path(x,y,segchar.coords[i]);
     		}
+		else
+		    off_path += create_seg_path(x,y,segchar.coords[i]);
     	    }
     	}
 	
@@ -244,12 +247,16 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 
 	g.add(sc);
 
-	path="";
+	// var off_sc = g.path(off_path);
+	// off_sc.attr({ fill: "#FFFFFF", stroke: "#000000", strokeWidth: "1px"}).
+	//     attr("vector-effect", "non-scaling-stroke");
+
+	// g.add(off_sc);
     }
 
     //console.log(path);
 
-    //we return the width and height explicitely (rather than letting the user run getBBox() on
+    //we return the width and height explicitly (rather than letting the user run getBBox() on
     //sc, because getBBox() is kind of slow.
     return { elem: g,
 	     w: width,
@@ -444,6 +451,7 @@ function create_message_for_seg(t,seg)
 
     return message;
 }
+//TODO fix example for not bits
 
 function xor_bits(b1,b2)
 {
@@ -456,6 +464,19 @@ function xor_bits(b1,b2)
     {
 	o[i] = (b1[i] && !b2[i] || !b1[i] && b2[i]);
 	// !(b1[i] == b2[i]); doesn't work???
+    }
+
+    return o;
+}
+
+function not_bits(b)
+{
+    var o = [];
+    o[b.length - 1] = false;
+    
+    for(i = 0; i < o.length; i++)
+    {
+	o[i] = !b[i];
     }
 
     return o;
@@ -526,7 +547,7 @@ function input_changed()
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
 	    // message.bits;
-	    var g2_bits = otp_bits;
+	    var g2_bits = otp_bits;//not_bits(otp_bits);
 	    //console.log(message);
 	    
 	    g1.clear();
