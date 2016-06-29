@@ -4,16 +4,21 @@
     <meta charset="UTF-8">
     <title>Paper based OTP</title>
     <script src="snap.svg-min.js"></script>
-    <script src="seedrandom.min.js"></script>
-    <script src="rng.js"></script>
+    <script src="sjcl.js"></script>
     <script src="5x8.js"></script>
     <script src="sixteenSeg.js"></script>
     <script src="align.js"></script>
+    <script src="rng.js"></script>
     <script>
+
+//we are paranoid as possible
+sjcl.random.setDefaultParanoia(10);
 
 var s1;
 var s2;
 var g1,g2;
+
+var segchar = segchar16;
 
 var rows = 10;
 var cols = 30;
@@ -35,11 +40,6 @@ var g1_pat_color = "#404040";
 var g2_pat_color = "#000000";
 
 var pat_scales = [
-    1,
-    1,
-    1,
-    1,
-    1,
     1,
 ];
 
@@ -265,14 +265,17 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 	     
 }
 
+
 window.onload = function()
 {
-    document.getElementById("mainarea").style.display = "block";
-    document.getElementById("printarea").style.display = "none";
+    sjcl.random = new sjcl.prng(1); //TODO set to 10 or at least 6 (default)
+    show_page("mainarea");
     
     g1 = Snap("#s1");
 
     g2 = Snap("#s2");
+
+//    console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
 }
 
 function calc_rows(t, force_wrap)
@@ -482,14 +485,120 @@ function not_bits(b)
     return o;
 }
 
+function decimalToHexString(number)
+{
+    if (number < 0)
+    {
+    	number = 0xFFFFFFFF + number + 1;
+    }
+
+    return number.toString(16).toUpperCase();
+}
+
+function hex2bin(hex,length)
+{
+    var bits = [], str;
+
+    //HACK to make sure we got 8 random bits per byte
+    // var bits1 = [], bits0 = [];
+
+    for(var i=0; i<hex.length-1; i+=2)
+    {
+	var v = parseInt(hex.substr(i, 2), 16);
+
+	for(var j=0;j<8;j++)
+	{
+	    bits[bits.length] = ((v&(1<<j)) != 0);
+	    // if(bits[bits.length-1])
+	    // {
+	    // 	bits1[j] = true;
+	    // }
+	    // else
+	    // 	bits0[j] = true;
+
+	    if(bits.length >= length)
+	    {
+		i = hex.length;
+		break;
+	    }
+	}
+    }
+
+    // for(var j = 0; j < 8; j++)
+    // {
+    // 	if(!bits1[j])
+    // 	{
+    // 	    console.log("%d NEVER 1!!!",j);
+    // 	}
+    // 	if(!bits0[j])
+    // 	    console.log("%d NEVER 0!!!",j);
+    // }
+
+    return bits;
+}
+
+function finish_generate_seed()
+{
+    sjcl.random.stopCollectors();
+
+    var input = document.getElementById('msg').value;
+
+    //add extra OTP incase they increase the message size
+    var bits = Math.max((input.length * segchar.bit_count) * 4, 40*segchar.bit_count);
+
+    //get the random data into our wasteful but convienent boolean array format
+    var random_data = sjcl.random.randomWords(Math.ceil(bits/32));
+    
+    var otp = "";
+    for(var bytei = 0; bytei < random_data.length; bytei++)
+    {
+	otp += decimalToHexString(random_data[bytei]);
+    }
+
+    document.getElementById('otp').value = otp;
+    
+
+    show_page("mainarea");
+    
+    input_changed();
+}
+
+function update_paranoia_percent()
+{
+    console.log("update_paranoia_percent",sjcl.random.getProgress(), sjcl.random.isReady());
+    document.getElementById('paranoia_perc').innerHTML =
+			       "Move mouse around to generate random data... Paranoia "+
+			       (sjcl.random.getProgress()*100)+"%";
+
+    //I know that a value of 2 corresponds to sjcl.random._NOT_READY, but according to:
+    //https://github.com/bitwiseshiftleft/sjcl/wiki/Symmetric-Crypto
+    //it still means it is ready.
+    if(!sjcl.random.isReady()) 
+	setTimeout(update_paranoia_percent,500);
+}
+
+
+function generate_seed()
+{
+    if(!sjcl.random.isReady())
+    {
+	show_page("generatearea")
+	// finish_generate_seed();
+	//    sjcl.random.startCollectors();
+	// console.log("isready?",sjcl.random.isReady(), sjcl.random.getProgress(),sjcl.random);
+	
+	redfish64.seeder.onfinish(finish_generate_seed);
+	redfish64.seeder.start();
+	
+	setTimeout(update_paranoia_percent,500);
+    }
+    else
+	finish_generate_seed();
+}
+    
 function create_otp_bits(length)
 {
-    var bits = [];
-    bits[length-1] = false; //prealloc
-    Math.seedrandom("FIXME!"); //TODO get data from OTP
-    for(i = 0; i < length; i++)
-	bits[i] = (Math.random() >= .5);
-    //0;
+    var bits = hex2bin(document.getElementById('otp').value,length);
 
     return bits;
 }
@@ -503,22 +612,66 @@ function get_mode()
 	}
     }
 }
-    
-function input_changed()
+
+function update_print_buttons()
 {
-    var mode = get_mode();
-    
     var input = document.getElementById('msg').value;
-    if(input.length == 0)
+    var otp = document.getElementById('otp').value;
+
+    var otp_bits = otp.length * 4;
+    var input_bits_needed = input.length * segchar.bit_count;
+
+    var error = "";
+    if(input.length == 0 && otp.length==0)
+    {
+	error = "Please enter a message and create otp (one time pad) random data";
+    }
+    else if(input.length == 0)
+    {
+	error = "Please enter a message.";
+    }
+    else if(otp.length == 0)
+	error = "Please enter OTP (one time pad) data or click 'Generate OTP'.";
+    else if (otp_bits < input_bits_needed)
+    {
+	console.log(otp_bits, input_bits_needed);
+	error = "Need at least "+Math.ceil((input_bits_needed-otp_bits)/8)+" more OTP bytes. Please enter more OTP (one time pad) data or click 'Generate OTP'.";
+    }
+    
+
+    if(error != "")
     {
 	document.getElementById('print_s1').disabled=true;
 	document.getElementById('print_s2').disabled=true;
     }
     else
     {
+	error = "Press \"Print!\" to print each page. For extra security, print each copy to separate printers.";
 	document.getElementById('print_s1').disabled=false;
 	document.getElementById('print_s2').disabled=false;
     }
+
+    document.getElementById('error').innerHTML = error;
+}
+
+var otp_regex=/[^0-9A-Fa-f]+/g;
+
+function otp_changed()
+{
+    var otp = document.getElementById('otp');
+
+    otp.value = otp.value.replace(otp_regex,'');
+
+    input_changed();
+}
+
+function input_changed()
+{
+    update_print_buttons();
+    
+    var mode = get_mode();
+    
+    var input = document.getElementById('msg').value;
     
     if(g1 && g2)
     {
@@ -541,9 +694,9 @@ function input_changed()
 			g2_pat_path,
 			g2_pat_color);
 	}
-	else if(mode == "sixteenseg")
+	else //if(mode == "sixteenseg")
 	{
-	    var message = create_message_for_seg(input, segchar16);
+	    var message = create_message_for_seg(input, segchar);
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
 	    // message.bits;
@@ -553,7 +706,7 @@ function input_changed()
 	    g1.clear();
 	    var g1_patterns = get_patterns(g1, g1_pat_color, 1);
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
-			   g1_patterns, segchar16
+			   g1_patterns, segchar
 				  );
 
 	    if(sc1)
@@ -565,7 +718,7 @@ function input_changed()
 	    g2.clear();
 	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
-				   g2_patterns,segchar16);
+				   g2_patterns,segchar);
 	    if(sc2)
 		g2.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
     		 	   //preserveAspectRatio: "none"
@@ -644,20 +797,10 @@ function reverse_pattern(g, p)
 function get_patterns(g,color, pn)
 {
     var pat1 = [
-	g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
-	g.path("M 0 0 L 0 0.5 L 0.5 1 L 1 1 L 0 0 M 0.5 0 L 1 0.5 L 1 0 L 0.5 0"),
-	g.circle(.5,.5,.4),
-	null,
-	g.path("M 0 0 L 0 0.5 L 0.5 0.5 L 0.5 0 L 0 0 M 0.5 0.5 L 1.0 0.5 L 1.0 1.0 L 0.5 1.0 L 0.5 0.5"),
 	g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
     ];
 
     var pat2 = [
-	g.path("M 1 0 L 1 0.5 L 0.5 1 L 0 1 L 1 0 M 0.5 0 L 0 0.5 L 0 0 L 0.5 0"),
-	null,
-	null,
-	g.circle(.5,.5,.4),
-	null,
 	null,
     ];
 	     
@@ -801,17 +944,25 @@ function create_legend_box(page_number, //1 or 2
     return legend_box;
 }
 
+function show_page(name)
+{
+    var pages = ["mainarea","printarea","generatearea"];
+
+    for(var i = 0; i < pages.length; i++)
+    {
+	document.getElementById(pages[i]).style.display = (pages[i] == name) ? "block" : "none";
+    }
+}
+
 function print_page(page_number)
 {
-    document.getElementById("mainarea").style.display = "none";
-    document.getElementById("printarea").style.display = "block";
-
+    show_page("printarea");
     var g = Snap("#p");
 
     var input = document.getElementById('msg').value;
     var mode = get_mode();
 
-    var message = create_message_for_seg(input, segchar16);
+    var message = create_message_for_seg(input, segchar);
 
     var bits;
     if(page_number == 1)
@@ -831,7 +982,7 @@ function print_page(page_number)
 		    g1_pattern,
 		    g1_color);
     }
-    else if(mode == "sixteenseg")
+    else// if(mode == "sixteenseg")
     {
 	g.clear();
 	
@@ -843,7 +994,7 @@ function print_page(page_number)
 	    patterns = get_patterns(g, g2_pat_color, 2);
 
 	var sc = draw_segchar(g,bits, message.force_wrap,
-			      patterns, segchar16
+			      patterns, segchar
 			     );
 	var scw = sc.w;
 	var sch = sc.h;
@@ -862,13 +1013,13 @@ function print_page(page_number)
 	//all tables and charts are written directly in the svg.
 	if(page_number == 1)
 	{
-	    var at = draw_ascii_table_for_seg(g,segchar16, patterns[0]);
+	    var at = draw_ascii_table_for_seg(g,segchar, patterns[0]);
 	    at.transform_to_box({x: scw, y: 0, w: scw+rm, h: sch+bm});
 	}
 
 	var ins_height = instructions.height_perc * bm;
 		
-	var legend_box = create_legend_box(page_number,g,segchar16, patterns[0]);
+	var legend_box = create_legend_box(page_number,g,segchar, patterns[0]);
 	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm - ins_height});
 
 	//create instructions at bottom
@@ -878,9 +1029,7 @@ function print_page(page_number)
     }
 
     window.print();
-    document.getElementById("printarea").style.display = "none";
-    document.getElementById("mainarea").style.display = "block";
-
+    show_page("mainarea");
 }
 
 
@@ -898,6 +1047,17 @@ function print_page(page_number)
       .encoded_page {
       padding: 40px
       }
+      .seedpoint { width: 6px; height: 6px; display: block; border-radius: 3px; background-color: #009900; position: absolute; z-index: 10; }
+      .error { color: #FF0000; }
+
+      .paranoia_perc {
+      display: inline;
+      white-space: nowrap;
+      }
+      .paranoia_label {
+      display: inline;
+      white-space: nowrap;
+      }
     </style>
 
 </head>
@@ -907,17 +1067,18 @@ function print_page(page_number)
     <p>Introduction: bla bla bla</p>
     <table>
     <tr><td colspan="4">
-    <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment
-    <input type="radio" name="mode" value="grid" onclick="input_changed()">Grid
+    <!-- <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment -->
+    <!-- <input type="radio" name="mode" value="grid" onclick="input_changed()">Grid -->
     </td></tr>
     <tr>
     <td>Message
     <td width="50%"><textarea rows="5" placeholder="Enter message" autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
     <td>OTP
-    <td width="50%"><textarea rows="5" placeholder="Enter hexidecimal data or click 'Generate OTP'"></textarea>
-    <td><input type="button" value="Generate OTP">
+    <td width="50%"><textarea rows="5" placeholder="Enter hexidecimal data or click 'Generate OTP'" id="otp"onkeyup="otp_changed()" onchange="otp_changed()"></textarea>
+    <td><input type="button" value="Generate OTP" onclick="generate_seed();">
     </tr>
     </table>
+    <p id="error" class="error">Have a nice day</p>
     <table>
     <tr>
     <td class="encoded_page">
@@ -935,6 +1096,9 @@ function print_page(page_number)
     </div>
     <div id="printarea">
     <svg width="100%" height="100%" id="p" />
+    </div>
+    <div id="generatearea">
+    <h3><div id="paranoia_perc"></div></h3>
     </div>
 </body>
     
