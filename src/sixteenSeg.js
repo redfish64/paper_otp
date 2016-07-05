@@ -28,7 +28,6 @@
       vgap: 2,
 
       //ascii_map originally from https://ketturi.kapsi.fi/2013/08/vfd-schematics-code-witchcraft/
-      //TODO 2 pay attrition or something
       ascii_map: [
 	  0b0000000000000000 , //NUL Null \0 ^@      (null charter, but shows as empty block dunno)
 	  0b1111111111111111 , //can be used like test charter lighting all segments

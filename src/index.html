@@ -3,6 +3,106 @@
     <head>
     <meta charset="UTF-8">
     <title>Paper based OTP</title>
+
+    <script>
+    /*
+    	Notice of Copyrights and Licenses:
+	***********************************
+	The paper-otp project, software and embedded resources are copyright rareventure.com.
+	Portions of the all-in-one HTML document contain JavaScript codes that are the copyrights of others. 
+	The individual copyrights are included throughout the document along with their licenses.
+	Included JavaScript libraries are separated with HTML script tags.
+
+	Summary of JavaScript functions with a redistributable license:
+	JavaScript function		License
+	*******************		***************
+	Snap                            BSD License
+	sjcl                            BSD and gnu license
+
+	The paper-otp software is available under The MIT License (MIT)
+	Copyright (c) 2016 rareventure.com
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+	associated documentation files (the "Software"), to deal in the Software without restriction, including 
+	without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+	sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject 
+	to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all copies or substantial 
+	portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT 
+	LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+	IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
+	WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+	SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+	GitHub Repository: https://github.com/redfish64/paper_otp
+
+
+* Snap BSD License:
+
+* Copyright (c) 2007-2012, Jure Leskovec
+* All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions are met:
+*     * Redistributions of source code must retain the above copyright
+*       notice, this list of conditions and the following disclaimer.
+*     * Redistributions in binary form must reproduce the above copyright
+*       notice, this list of conditions and the following disclaimer in the
+*       documentation and/or other materials provided with the distribution.
+*     * Neither the name of Stanford University nor the names of its contributors
+*       may be used to endorse or promote products derived from this software
+*       without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+sjcl license:
+
+Copyright 2009-2010 Emily Stark, Mike Hamburg, Dan Boneh, Stanford University.
+
+This is for liability reasons.  (Speaking of which, SJCL comes with NO
+WARRANTY WHATSOEVER, express or implied, to the limit of applicable
+law.)
+
+SJCL is dual-licensed under the GNU GPL version 2.0 or higher, and a
+2-clause BSD license.  You may use SJCL under the terms of either of
+these licenses.  For your convenience, the GPL versions 2.0 and 3.0
+and the 2-clause BSD license are included here.  Additionally, you may
+serve "crunched" copies of sjcl (i.e. those with comments removed,
+and other transformations to reduce code size) without any copyright
+notice.
+
+SJCL includes JsDoc toolkit, YUI compressor, Closure compressor,
+JSLint and the CodeView template in its build system.  These programs'
+copyrights are owned by other people.  They are distributed here under
+the MPL, MIT, BSD, Apache and JSLint licenses.  Codeview is "free for
+download" but has no license attached; it is Copyright 2010 Wouter Bos.
+
+The BSD license is (almost?) strictly more permissive, but the
+additionally licensing under the GPL allows us to use OCB 2.0 code
+royalty-free (at least, if OCB 2.0's creator Phil Rogaway has anything
+to say about it).  Note that if you redistribute SJCL under a license
+other than the GPL, you or your users may need to pay patent licensing
+fees for OCB 2.0.
+
+There may be patents which apply to SJCL other than Phil Rogaway's OCB
+patents.  We suggest that you consult legal counsel before using SJCL
+in a commercial project.
+
+*/
+</script>
+
     <script src="snap.svg-min.js"></script>
     <script src="sjcl.js"></script>
     <script src="5x8.js"></script>
@@ -10,9 +110,6 @@
     <script src="align.js"></script>
     <script src="rng.js"></script>
     <script>
-
-//we are paranoid as possible
-sjcl.random.setDefaultParanoia(10);
 
 var s1;
 var s2;
@@ -31,7 +128,16 @@ var font = console_font_5x8;
 
 var min_force_wrap = 5;
 var max_force_wrap = 100;
-var page_ratio = 7.5/10; //8.5x11 with half inch margins
+
+
+//for printing, the right margin is used for an ascii to value table
+var right_margin_perc = .15;
+//for printing, the bottom margin is used to help the user understand the results
+var bottom_margin_perc = .15;
+
+//for printing, ratio of width to height of pane within printed page that
+//contains coded data.
+var data_pane_ratio = (7.5*(1-right_margin_perc))/(10*(1-bottom_margin_perc)); 
 
 //pattern color for code in first page
 var g1_pat_color = "#404040";
@@ -42,11 +148,6 @@ var g2_pat_color = "#000000";
 var pat_scales = [
     1,
 ];
-
-//for printing, the right margin is used for an ascii to value table
-var right_margin_perc = .3;
-//for printing, the bottom margin is used to help the user understand the results
-var bottom_margin_perc = .3;
 
 //draw_ascii_table_for_seg
 var ascii =
@@ -82,7 +183,7 @@ var legend =
 var instructions =
 {
     height_perc: .30, 
-    text: [ "Place second page underneath and shine a light from behind to decipher code.",
+    text: [ "Place second page underneath and shine a light from behind to decipher code. 'on' segments appear on page 1 or page 2 but not both (ie. gray, but not black and not white)",
 	    "Place first page on top and shine a light from behind to decipher code." ]
 }
 
@@ -265,7 +366,6 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 	     
 }
 
-
 window.onload = function()
 {
     sjcl.random = new sjcl.prng(1); //TODO set to 10 or at least 6 (default)
@@ -317,14 +417,14 @@ function choose_force_wrap(t, font_width_over_height)
 	var rows = calc_rows(t,i);
 
 	//if we haven't gained anymore rows by reducing the force wrap, then
-	//we keep going. Otherwise, if we go below the page_ratio, we stop
-	if(rows != last_rows && i * font_width_over_height / rows < page_ratio)
+	//we keep going. Otherwise, if we go below the data_pane_ratio, we stop
+	if(rows != last_rows && i * font_width_over_height / rows < data_pane_ratio)
 	    break;
 
 	last_rows = rows;
     }
 
-    console.log("force wrap %s %d %d %d", t, i+1, calc_rows(t,i), calc_rows(t,i+1));
+    //console.log("force wrap %s %d %d %d", t, i+1, calc_rows(t,i), calc_rows(t,i+1));
     
     return i+1;
 }
@@ -454,7 +554,6 @@ function create_message_for_seg(t,seg)
 
     return message;
 }
-//TODO fix example for not bits
 
 function xor_bits(b1,b2)
 {
@@ -565,7 +664,7 @@ function finish_generate_seed()
 
 function update_paranoia_percent()
 {
-    console.log("update_paranoia_percent",sjcl.random.getProgress(), sjcl.random.isReady());
+    //console.log("update_paranoia_percent",sjcl.random.getProgress(), sjcl.random.isReady());
     document.getElementById('paranoia_perc').innerHTML =
 			       "Move mouse around to generate random data... Paranoia "+
 			       (sjcl.random.getProgress()*100)+"%";
@@ -634,7 +733,7 @@ function update_print_buttons()
 	error = "Please enter OTP (one time pad) data or click 'Generate OTP'.";
     else if (otp_bits < input_bits_needed)
     {
-	console.log(otp_bits, input_bits_needed);
+	//console.log(otp_bits, input_bits_needed);
 	error = "Need at least "+Math.ceil((input_bits_needed-otp_bits)/8)+" more OTP bytes. Please enter more OTP (one time pad) data or click 'Generate OTP'.";
     }
     
@@ -646,7 +745,7 @@ function update_print_buttons()
     }
     else
     {
-	error = "Press \"Print!\" to print each page. For extra security, print each copy to separate printers.";
+	error = "Press \"Print!\" to print each page. For extra security, print each page to separate printer.";
 	document.getElementById('print_s1').disabled=false;
 	document.getElementById('print_s2').disabled=false;
     }
@@ -901,7 +1000,7 @@ function create_legend_seg_bit_char(g, seg, pattern, bitmap, is_visible)
 }
 
 
-function create_legend_box1(page_number, //1 or 2
+function create_legend_box(page_number, //1 or 2
 		     g,seg,pattern)
 {
     var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
@@ -917,18 +1016,8 @@ function create_legend_box1(page_number, //1 or 2
      item_spacer,
      create_example_coord(g,seg,pattern, false, "off", page_number == 1),
      item_spacer,
-     create_example_coord(g,seg,pattern, true, "off", page_number == 1));
-
-    return legend_box;
-}
-
-function create_legend_box2(page_number, //1 or 2
-			    g,seg,pattern)
-{
-    var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
-
-    var legend_box2 = Align.halign
-    (g,
+     create_example_coord(g,seg,pattern, true, "off", page_number == 1),
+     group_spacer,
      create_legend_text(g,"Example:", page_number == 1),
      item_spacer,
      create_legend_seg_bit_char(g,seg, pattern,
@@ -950,8 +1039,8 @@ function create_legend_box2(page_number, //1 or 2
      item_spacer,
      create_legend_text(g,legend.example_char, page_number == 1)
     );
-    
-    return legend_box2;
+
+    return legend_box;
 }
 
 function show_page(name)
@@ -986,7 +1075,7 @@ function print_page(page_number)
     if(mode == "grid")
     {
 	//console.log('hi');
-	// TODO 2 FINISH
+	// TODO 4 FINISH
 	
 	redraw_grid(g,bits, message.width,
 		    g1_pattern,
@@ -1009,10 +1098,10 @@ function print_page(page_number)
 	var scw = sc.w;
 	var sch = sc.h;
 
-	if(scw / page_ratio > sch)
-	    sch = scw / page_ratio;
+	if(scw / data_pane_ratio > sch)
+	    sch = scw / data_pane_ratio;
 	else
-	    scw = sch * page_ratio;
+	    scw = sch * data_pane_ratio;
 	
 	var rm = Math.round(scw * right_margin_perc);
 	var bm = Math.round(sch * bottom_margin_perc);
@@ -1028,15 +1117,10 @@ function print_page(page_number)
 	}
 
 	var ins_height = instructions.height_perc * bm;
-	var legend_height1 = (bm - ins_height) * .5;
-	var legend_height2 = legend_height1;
 		
-	var legend_box1 = create_legend_box1(page_number,g,segchar, patterns[0]);
-	legend_box1.transform_to_box({x: 0, y: sch, w: scw, h: legend_height1});
-	
-	var legend_box2 = create_legend_box2(page_number,g, segchar, patterns[0]);
-	legend_box2.transform_to_box({x: 0, y: sch+legend_height1, w: scw, h: legend_height2})
-	
+	var legend_box = create_legend_box(page_number,g,segchar, patterns[0]);
+	legend_box.transform_to_box({x: 0, y: sch, w: scw, h: sch+bm - ins_height});
+
 	//create instructions at bottom
 	var ibox = create_legend_text(g,instructions.text[page_number-1], true).
 	    transform_to_box({ x: 0, y: sch+bm - ins_height,
@@ -1081,7 +1165,6 @@ function print_page(page_number)
     <body>
     <div id="mainarea">
       <p>Creates paper based <a href="https://en.wikipedia.org/wiki/One-time_pad">one time pad</a> encoded messages which can viewed using only the paper and a light source.</p>
-      <p>If a segment is in either the first page or the second page, but not both, it is considered
     <table>
     <tr><td colspan="4">
     <!-- <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment -->
@@ -1110,17 +1193,18 @@ function print_page(page_number)
     <svg width="400" height="500" id="s2" />
     <br>
     </td></tr></table>
-    <div class="copyright">
-      <span>Copyright rareventure.com.</span>
-      <span>JavaScript copyrights are included in the source.</span>
-      <span>No warranty.</span>
-    </div>
     </div>
     <div id="printarea">
     <svg width="100%" height="100%" id="p" />
     </div>
     <div id="generatearea">
     <h3><div id="paranoia_perc"></div></h3>
+    </div>
+    <div class="copyright">
+      <span>Copyright rareventure.com.</span>
+      <span>JavaScript copyrights are included in the source.</span>
+      <span>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT 
+	LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. </span>
     </div>
     </body>
     
