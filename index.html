@@ -6744,6 +6744,14 @@ function update_paranoia_percent()
 }
 
 
+function clear_fields()
+{
+    var input = document.getElementById('msg').value = "";
+    var otp = document.getElementById('otp').value = "";
+    
+    input_changed();
+}
+
 function generate_seed()
 {
     if(!sjcl.random.isReady())
@@ -6859,6 +6867,8 @@ function input_changed()
 	}
 	else //if(mode == "sixteenseg")
 	{
+	    g1.clear();
+	    g2.clear();
 	    if(input.length == 0)
 		return;
 	    
@@ -6869,7 +6879,6 @@ function input_changed()
 	    var g2_bits = otp_bits;//not_bits(otp_bits);
 	    //console.log(message);
 	    
-	    g1.clear();
 	    var g1_patterns = get_patterns(g1, g1_pat_color, 1);
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
 			   g1_patterns, segchar
@@ -6881,7 +6890,6 @@ function input_changed()
     			  });
 		
 		
-	    g2.clear();
 	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
 				   g2_patterns,segchar);
@@ -7219,6 +7227,11 @@ function print_page(page_number)
       white-space: nowrap;
       }
       .copyright { font-size: 80%; clear: both; padding: 5px 0; }
+
+      html *
+      {
+      font-family: sans-serif;
+      }
     </style>
 
 </head>
@@ -7227,6 +7240,7 @@ function print_page(page_number)
     <div id="mainarea">
     <h1>Paper OTP</h1>
     <p>A paper based <a href="https://en.wikipedia.org/wiki/One-time_pad">one time pad</a> encoded message creator. Messages can decoded using only paper and a light source.</p>
+    <p>Messages are created locally on your machine and not transmitted anywhere.</p>
     <br><br>
     <table>
     <tr><td colspan="4">
@@ -7238,7 +7252,17 @@ function print_page(page_number)
     <td width="50%"><textarea rows="5" placeholder="Enter message" autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
     <td>OTP
     <td width="50%"><textarea rows="5" placeholder="Enter hexidecimal data or click 'Generate OTP'" id="otp"onkeyup="otp_changed()" onchange="otp_changed()"></textarea>
-    <td><input type="button" value="Generate OTP" onclick="generate_seed();">
+    </td>
+    </tr>
+    <tr>
+      <td></td>
+      <td>
+      	<input type="button" value="Clear" onclick="clear_fields();">
+      </td>
+      <td></td>
+      <td>    
+	<input type="button" value="Generate OTP" onclick="generate_seed();">
+      </td>
     </tr>
     </table>
     <p id="error" class="error">Have a nice day</p>
