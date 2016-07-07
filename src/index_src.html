@@ -2,7 +2,7 @@
     <html>
     <head>
     <meta charset="UTF-8">
-    <title>Paper based OTP</title>
+    <title>Paper OTP</title>
 
     <script>
     /*
@@ -129,9 +129,10 @@ var font = console_font_5x8;
 var min_force_wrap = 5;
 var max_force_wrap = 100;
 
-//this is taken from the svg width and height (rather than trying to read it directly
-//we just copy the data here
-var data_pane_ratio = 6.5386266094 / 6.1522060123;
+// WARNING: this is taken from the svg width and height below:
+//	  <svg id="p" width="..." height="...">
+// Keep them in sync.
+var data_pane_ratio = 6.5568669528 / 5.8921695013;
 
 
 
@@ -790,6 +791,9 @@ function input_changed()
 	}
 	else //if(mode == "sixteenseg")
 	{
+	    if(input.length == 0)
+		return;
+	    
 	    var message = create_message_for_seg(input, segchar);
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
@@ -878,7 +882,12 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 	group.add(composite_box.o);
     }
 
-    return Align.create_box(g,{ o: group });
+    return Align.create_box(g,{ o: group,
+				x: 0,
+				y: 0,
+				w: ascii.left_margin + (col+1)*(col_width+ascii.col_gap),
+				h: ascii.max_rows * ascii.line_height
+			      });
 }
 
 function reverse_pattern(g, p)
@@ -1100,9 +1109,10 @@ function print_page(page_number)
 	    var ag = Snap("#ascii_table");
 	    
 	    var at = draw_ascii_table_for_seg(ag,segchar, patterns[0]);
+	    console.log(at);
 
 	    ag.attr({viewBox:[0,0,at.w,at.h].join(' '),
-    		       //preserveAspectRatio: "none"
+    		      preserveAspectRatio: "none"
     		   });
 	}
 
@@ -1147,7 +1157,9 @@ function print_page(page_number)
 
     <body>
     <div id="mainarea">
-      <p>Creates paper based <a href="https://en.wikipedia.org/wiki/One-time_pad">one time pad</a> encoded messages which can viewed using only the paper and a light source.</p>
+    <h1>Paper OTP</h1>
+    <p>A paper based <a href="https://en.wikipedia.org/wiki/One-time_pad">one time pad</a> encoded message creator. Messages can decoded using only the paper and a light source.</p>
+    <br><br>
     <table>
     <tr><td colspan="4">
     <!-- <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment -->
@@ -1187,13 +1199,16 @@ function print_page(page_number)
     <table>
       <tr>
 	<td>
-	  <svg id="p" width="6.5386266094in" height="6.1522060123in">
-	    <!-- <ellipse cx="3.2693133047in" cy="3.0761030061in" rx="3.2693133047in" ry="3.0761030061in" -->
-	    <!-- 	     style="fill:yellow;stroke:purple;stroke-width:2" /> -->
+	  <!-- WARNING, these values are copied above at
+var data_pane_ratio = ....; 
+
+Keep them in sync.
+-->
+	  <svg id="p" width="6.5568669528in" height="5.89216950163in">
 	  </svg>
 	</td>
 	<td rowspan="2">
-	  <svg id="ascii_table" width="0.7113733906in" height="9.75in">
+	  <svg id="ascii_table" width="0.6931330472in" height="9.5in">
 	    <!-- <ellipse cx="0.3556866953in" cy="4.875in" rx="0.3556866953in" ry="4.875in" -->
 	    <!-- 	     style="fill:green;stroke:red;stroke-width:2" /> -->
 	    </svg>
@@ -1202,8 +1217,8 @@ function print_page(page_number)
       <tr>
     <td>
     <!-- replace_in_file:block:start:howto.svg -->
-	  <svg id="legend_box" width="6.5386266094in" height="3.5977939877in">
-	  <ellipse cx="3.2693133047in" cy="1.7988969939in" rx="3.2693133047in" ry="1.7988969939in"
+	  <svg id="legend_box" width="6.5568669528in" height="3.6078304987in">
+	  <ellipse cx="3.2784334764in" cy="1.8039152493in" rx="3.2784334764in" ry="1.8039152493in"
 	  	   style="fill:none;stroke:orange;stroke-width:2" />
 	  </svg>
     <!-- replace_in_file:block:end -->
