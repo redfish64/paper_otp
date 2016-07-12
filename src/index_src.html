@@ -134,7 +134,10 @@ var max_force_wrap = 100;
 // Keep them in sync.
 var data_pane_ratio = 6.5568669528 / 7.41323;
 
-
+// WARNING: this is taken from the svg width and height below:
+//	  <svg id="pg" width="..." height="...">
+// Keep them in sync.
+var grid_data_pane_ratio=7/9.5;
 
 //pattern color for code in first page
 var g1_pat_color = "#404040";
@@ -161,29 +164,6 @@ var ascii =
     };
 
 
-var legend =
-    {
-	char_height: 10,
-	ex_total_height: 14,
-	ex_ind_coord_height: 10,
-	ex_vgap: 1,
-	ex_on_off_text_height: 3,
-	item_hgap: 5,
-	group_hgap: 20,
-	seg_height: 14,
-
-	example_bitmap1: 0b0110000110110111,
-	example_bitmap2: 0b0100110110010011,
-	example_char: "K"
-    };
-
-var instructions =
-{
-    height_perc: .30, 
-    text: [ "Place second page underneath and shine a light from behind to decipher code. 'on' segments appear on page 1 or page 2 but not both (ie. gray, but not black and not white)",
-	    "Place first page on top and shine a light from behind to decipher code." ]
-}
-
 function path_rect(x,y,w,h)
 {
     return "M "+x+" "+y+
@@ -193,9 +173,8 @@ function path_rect(x,y,w,h)
 	"L "+x+" "+y;
 }
 
-function redraw_grid(g,bits,width,pathtxt,color)
+function draw_grid(g,bits,width)
 {
-    g.clear();
     if(bits.length == 0 || width == 0)
 	return;
     
@@ -206,14 +185,10 @@ function redraw_grid(g,bits,width,pathtxt,color)
     var height = bits.length/width;
 
     //console.log("w %d h %d",width, height);
-    //console.log(bits);
+    //console.log(bits.length);
 
     g.attr({viewBox:[0,0,width,height].join(' '),
-    	      //preserveAspectRatio: "none"
     	     });
-    // g.attr({viewBox:[0,0,100,100].join(' '),
-    // 	      //preserveAspectRatio: "none"
-    // 	     });
 
     var path="";
 
@@ -266,11 +241,9 @@ function redraw_grid(g,bits,width,pathtxt,color)
 	}
     }
 
-    create_rects_for_bits_fn(filled_lines,filled_cells_in_line);
+    //create_rects_for_bits_fn(filled_lines,filled_cells_in_line);
 
-    var patbasis = g.path(pathtxt).attr({ fill: color });
-    var pattern = patbasis.toPattern(0,0,1,1);
-    g.path(path).attr({ fill: pattern });
+    return g.path(path);
 }
 
 function create_seg_path(x,y,coords)
@@ -373,9 +346,8 @@ window.onload = function()
 
     g2 = Snap("#s2");
 
-
-    update_print_buttons();
-    //    console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
+    input_changed();
+    //console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
 }
 
 function calc_rows(t, force_wrap)
@@ -387,25 +359,24 @@ function calc_rows(t, force_wrap)
 	var c = t.charAt(i);
 	if(c == '\n')
 	{
-	    if(col != 0)
-		rows++;
+	    rows++;
 	    col = 0;
 	}
 	else
 	{
-	    col++;
-	    if(col > force_wrap)
+	    if(col >= force_wrap)
 	    {
 		rows++;
 		col=0;
 	    }
+	    col++;
 	}
     }
 
-    return rows;
+    return rows-(col == 0 ? 1 : 0);
 }
 
-function choose_force_wrap(t, font_width_over_height)
+function choose_force_wrap(t, font_width_over_height, page_ratio)
 {
     var i;
     
@@ -416,9 +387,9 @@ function choose_force_wrap(t, font_width_over_height)
     {
 	var rows = calc_rows(t,i);
 
-	//if we haven't gained anymore rows by reducing the force wrap, then
-	//we keep going. Otherwise, if we go below the data_pane_ratio, we stop
-	if(rows != last_rows && i * font_width_over_height / rows < data_pane_ratio)
+	//if we haven't gained any more rows by reducing the force wrap, then
+	//we keep going. Otherwise, if we go below the page_ratio, we stop
+	if(rows != last_rows && i * font_width_over_height / rows < page_ratio)
 	    break;
 
 	last_rows = rows;
@@ -434,11 +405,12 @@ function create_message_for_grid(t)
     var message = { text: "",
 		    bits: [],
 		    force_wrap: null,
+		    rows: null,
 		    width: null
 		  };
     
-    message.force_wrap = choose_force_wrap(t, charw/charh);
-    message.width = message.force_wrap * charw; //width always matches force_wrap * charw
+    message.force_wrap = choose_force_wrap(t, charw/charh, grid_data_pane_ratio);
+    message.width = message.force_wrap * charw; //width always is force_wrap * charw
     //it's just for convenience
     
     //assumes 5x8 and writes t into bits
@@ -472,6 +444,12 @@ function create_message_for_grid(t)
 	    row++;
 	    continue;
 	}
+
+	if(col >= message.force_wrap)
+	{
+	    col = 0;
+	    row++;
+	}
 	
 	var cr = c*charh;
 
@@ -494,12 +472,11 @@ function create_message_for_grid(t)
 	}
 
 	col++;
-	if(col > message.force_wrap)
-	{
-	    col = 0;
-	    row++;
-	}
     }
+
+    message.rows = row+1-(col == 0 ? 1 : 0);
+
+    //console.log("rows %d cr %d fw %d text %s ", message.rows,calc_rows(t,message.force_wrap),message.force_wrap,t);
 
     return message;
 }
@@ -509,9 +486,10 @@ function create_message_for_seg(t,seg)
     var message = { text: "",
 		    bits: [],
 		    force_wrap: null,
+		    rows: null
 		  };
     
-    message.force_wrap = choose_force_wrap(t,(seg.width+seg.hgap)/(seg.height+seg.vgap));
+    message.force_wrap = choose_force_wrap(t,(seg.width+seg.hgap)/(seg.height+seg.vgap), data_pane_ratio);
     
     message.text=t;
     message.bits = [];
@@ -530,6 +508,11 @@ function create_message_for_seg(t,seg)
 	    }
 	    continue;
 	}
+	if(col >= message.force_wrap)
+	{
+	    col = 0;
+	    row++;
+	}
 
 	//console.log("col %d row %d", col, row);
 	//we expand the buffer so it's always rectangular
@@ -545,12 +528,9 @@ function create_message_for_seg(t,seg)
 	}
 
 	col++;
-	if(col >= message.force_wrap)
-	{
-	    col = 0;
-	    row++;
-	}
     }
+
+    message.rows = row+1-(col == 0 ? 1 : 0);
 
     return message;
 }
@@ -560,7 +540,7 @@ function xor_bits(b1,b2)
     var o = [];
     o[(b1.length < b2.length ? b2.length : b1.length) - 1] = false;
     //console.log("b1 "+b1.length)
-    // console.log("b2 "+b2[0])
+    //console.log("b2 "+b2[0])
     
     for(i = 0; i < o.length; i++)
     {
@@ -717,13 +697,21 @@ function get_mode()
     }
 }
 
-function update_print_buttons()
+function is_grid_mode()
+{
+    var mode = get_mode();
+    return mode != "sixteenseg";
+}
+
+function update_print_buttons(message)
 {
     var input = document.getElementById('msg').value;
     var otp = document.getElementById('otp').value;
 
     var otp_bits = otp.length * 4;
-    var input_bits_needed = input.length * segchar.bit_count;
+
+    var input_bits_needed = message ? message.force_wrap * message.rows *
+	(is_grid_mode() ?  charw * charh : segchar.bit_count) : 0;
 
     var error = "";
     if(input.length == 0 && otp.length==0)
@@ -771,52 +759,57 @@ function otp_changed()
 
 function input_changed()
 {
-    update_print_buttons();
-    
-    var mode = get_mode();
-    
     var input = document.getElementById('msg').value;
+
+    var is_grid = is_grid_mode();
     
     if(g1 && g2)
     {
-	if(mode == "grid")
+	g1.clear();
+	g2.clear();
+	if(input.length == 0)
 	{
-	    //console.log('hi');
-	    var message = create_message_for_grid(input);
+	    update_print_buttons(null);
+	    return;
+	}
+	
+	var g1_patterns = get_patterns(g1, is_grid, g1_pat_color, 1);
+	var g1_off_patterns = get_patterns(g1, is_grid, g1_pat_color, 2);
+	var g2_patterns = get_patterns(g2, is_grid, g2_pat_color, 2);
+	var g2_off_patterns = get_patterns(g2, is_grid, g2_pat_color, 1);
+
+	var message;
+	if(is_grid)
+	{
+	    message = create_message_for_grid(input);
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
-	    //
-	    message.bits;
 	    var g2_bits = not_bits(otp_bits);
-	    //console.log(g1.bits);
 	    
-	    redraw_grid(g1,g1_bits, message.width,
-			g1_pat_path,
-			g1_pat_color
-		       );
-	    redraw_grid(g2,g2_bits, message.width,
-			g2_pat_path,
-			g2_pat_color);
+	    draw_grid(g1,g1_bits, message.width).
+		attr({ fill: g1_patterns[0] });
+	    draw_grid(g1,not_bits(g1_bits), message.width).
+	    	attr({ fill: g1_off_patterns[0] });
+
+	    if(g2_bits.length != 0)
+	    {
+		draw_grid(g2,g2_bits, message.width).
+		    attr({ fill: g2_patterns[0] });
+		draw_grid(g2,not_bits(g2_bits), message.width).
+		    attr({ fill: g2_off_patterns[0] });
+	    }
 	}
 	else //if(mode == "sixteenseg")
 	{
-	    g1.clear();
-	    g2.clear();
-	    if(input.length == 0)
-		return;
-	    
-	    var message = create_message_for_seg(input, segchar);
+	    message = create_message_for_seg(input, segchar);
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
 	    // message.bits;
 	    var g2_bits = not_bits(otp_bits);
 	    //console.log(message);
 	    
-	    var g1_patterns = get_patterns(g1, g1_pat_color, 1);
-	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
-
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
-				   g1_patterns, g2_patterns, segchar
+				   g1_patterns, g1_off_patterns, segchar
 				  );
 
 	    if(sc1)
@@ -826,13 +819,14 @@ function input_changed()
 		
 		
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
-				   g2_patterns, g1_patterns, segchar);
+				   g2_patterns, g2_off_patterns, segchar);
 	    if(sc2)
 		g2.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
     		 	   //preserveAspectRatio: "none"
     			  });
 		
 	}
+	update_print_buttons(message);
     }
 }
 
@@ -881,8 +875,8 @@ function draw_ascii_table_for_seg(g,seg,pattern)
 	var x = ascii.left_margin + col * (col_width + ascii.col_gap);
 	var y = ((i-ascii.char_start)%ascii.max_rows) * ascii.line_height;
 
-	// console.log("pt");
-	// console.log(path_box,text_box);
+	//console.log("pt");
+	//console.log(path_box,text_box);
 
 	var composite_box = Align.halign(g, path_box, hgap_box, text_box).
 	    transform_to_box({ x: x, y: y });
@@ -907,16 +901,39 @@ function reverse_pattern(g, p)
     return group;
 }
 
-function get_patterns(g,color, pn)
+function get_patterns(g,is_grid, color, pn)
 {
-    var pat1 = [
-	g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
-    ];
+    var pat1,pat2,pat_scales;
 
-    var pat2 = [
-	null,
-    ];
-	     
+    if(is_grid)
+    {
+	pat1 = [
+	    g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
+	];
+	
+	pat2 = [
+	    null,
+	];
+	
+	pat_scales = [
+	    .5,
+	];
+    }
+    else
+    {
+	pat1 = [
+	    g.path("M 0 0 L 1 1 L 0 1 L 0 0"),
+	];
+	
+	pat2 = [
+	    null,
+	];
+	
+	pat_scales = [
+	    1,
+	];
+    }
+
     var patterns = [];
 
     for(var i = 0; i < pat1.length; i++)
@@ -945,121 +962,10 @@ function get_patterns(g,color, pn)
     return patterns;
 }
 
-function create_legend_text(g,text, is_visible)
-{
-    //console.log("visible? %s",is_visible);
-    var o = g.text(0,legend.char_height,text).attr("font-size",legend.char_height)
-	.attr("visibility", is_visible? "visible" : "hidden");
-
-    var b = Align.create_box(g,{o: o,
-				h:legend.char_height});
-    //console.log(b);
-
-    return b;
-}
-
-function create_example_coord(g, seg, pattern, is_draw_coord, text, is_draw_text)
-{
-    var group = g.g();
-
-    var coord_box,text_box;
-
-    if(is_draw_coord)
-    {
-	var pathtext = create_seg_path(0,0,seg.example_coord);
-	var coord = g.path(pathtext);
-	
-	coord_box = Align.create_box(g,{ o: coord,
-					 w: seg.example_coord_bb.w,
-					 h: seg.example_coord_bb.h
-				       }).
-	    transform_to_box({ h: legend.ex_ind_coord_height});
-
-	coord.attr({fill: pattern});
-    }
-    else
-	//create an empty box to represent the blank area
-	coord_box = Align.create_box(g,{
-	    w: seg.example_coord_bb.w,
-	    h: seg.example_coord_bb.h}).
-	    transform_to_box({ h: legend.ex_ind_coord_height});
-	
-    var text = g.text(0,legend.ex_on_off_text_height,text).
-	attr("font-size",legend.ex_on_off_text_height).
-	attr("fill", is_draw_text ? "#000000" : "#FFFFFF" );
-
-	
-    text_box = Align.create_box(g,{ o: text,
-				    h: legend.ex_on_off_text_height,
-				  });
-
-    return Align.valign(g,coord_box,
-			Align.create_box(g, { w:0, h: legend.ex_vgap}),
-			text_box);
-}
-
-
-function create_legend_seg_bit_char(g, seg, pattern, bitmap, is_visible)
-{
-    var pathtxt = create_seg_bit_char(0,0,seg, bitmap);
-    var o = g.path(pathtxt).attr({fill: pattern});
-
-    if(!is_visible)
-	o.attr({ fill: "#FFFFFF" });
-
-    return Align.create_box(g,{ o: o,
-				w: seg.width,
-				h: seg.height
-		     }).transform_to_box({ h: legend.seg_height});
-}
-
-
-function create_legend_box(page_number, //1 or 2
-		     g,seg,pattern)
-{
-    var item_spacer = Align.create_box(g, { w: legend.item_hgap, h: 0});
-    var group_spacer = Align.create_box(g, { w: legend.group_hgap, h: 0});
-    
-    var legend_box = Align.halign
-    (g,
-     create_legend_text(g,"Legend:", page_number == 1),
-     item_spacer,
-     create_example_coord(g,seg,pattern, page_number==1, "on", page_number == 1),
-     item_spacer,
-     create_example_coord(g,seg,pattern, page_number==2, "on", page_number == 1),
-     item_spacer,
-     create_example_coord(g,seg,pattern, false, "off", page_number == 1),
-     item_spacer,
-     create_example_coord(g,seg,pattern, true, "off", page_number == 1),
-     group_spacer,
-     create_legend_text(g,"Example:", page_number == 1),
-     item_spacer,
-     create_legend_seg_bit_char(g,seg, pattern,
-     				page_number == 1 ?
-     				legend.example_bitmap1 :
-     				legend.example_bitmap2,
-				true
-     				  ),
-     item_spacer,
-     create_legend_text(g,"=", page_number == 1),
-     item_spacer,
-     create_legend_seg_bit_char(g,seg, pattern,
-     				 legend.example_bitmap1 ^
-     				legend.example_bitmap2,
-				page_number==1
-     				),
-     item_spacer,
-     create_legend_text(g,"=", page_number == 1),
-     item_spacer,
-     create_legend_text(g,legend.example_char, page_number == 1)
-    );
-
-    return legend_box;
-}
 
 function show_page(name)
 {
-    var pages = ["mainarea","printarea","generatearea"];
+    var pages = ["mainarea","printarea","generatearea","printareagrid"];
 
     for(var i = 0; i < pages.length; i++)
     {
@@ -1067,43 +973,56 @@ function show_page(name)
     }
 }
 
-function print_page(page_number)
+function print_page(pn)
 {
-    show_page("printarea");
-    var g = Snap("#p");
-
     var input = document.getElementById('msg').value;
-    var mode = get_mode();
-
-    var message = create_message_for_seg(input, segchar);
+    var is_grid = is_grid_mode();
+    
+    var message = is_grid ?
+	create_message_for_grid(input) :
+	create_message_for_seg(input, segchar);
 
     var bits;
-    if(page_number == 1)
+    if(pn == 1)
     {
 	var otp_bits = create_otp_bits(message.bits.length);
 	bits = xor_bits(message.bits, otp_bits);
     }
     else
 	bits = not_bits(create_otp_bits(message.bits.length));
-    
-    if(mode == "grid")
+
+    if(is_grid)
     {
-	//console.log('hi');
-	// TODO 4 FINISH
-	
-	redraw_grid(g,bits, message.width,
-		    g1_pattern,
-		    g1_color);
-    }
-    else// if(mode == "sixteenseg")
-    {
+	show_page("printareagrid");
+	var g = Snap("#pg");
+
 	g.clear();
 	
 	var patterns,off_patterns;
-	patterns = get_patterns(g, g1_pat_color, 1);
-	off_patterns = get_patterns(g, g1_pat_color, 2);
+	var patterns = get_patterns(g, is_grid, pn == 1 ? g1_pat_color : g2_pat_color, 1);
+	var off_patterns = get_patterns(g, is_grid, pn == 1 ? g1_pat_color : g2_pat_color, 2);
+
+	draw_grid(g, bits, message.width).
+	    attr({ fill: patterns[0] });
+	draw_grid(g, not_bits(bits), message.width).
+	    attr({ fill: off_patterns[0] });
+
+	window.print();
+	show_page("mainarea");
+
+    }
+    else// if(mode == "sixteenseg")
+    {
+	show_page("printarea");
+	var g = Snap("#p");
+
+	g.clear();
 	
-	if(page_number == 2)
+	var patterns,off_patterns;
+	patterns = get_patterns(g, false, pn == 1 ? g1_pat_color : g2_pat_color, 1);
+	off_patterns = get_patterns(g, false, pn == 1 ? g1_pat_color : g2_pat_color, 2);
+	
+	if(pn == 2)
 	{
 	    var t = off_patterns;
 	    off_patterns = patterns;
@@ -1118,12 +1037,12 @@ function print_page(page_number)
     	       });
 
 	
-	if(page_number == 1)
+	if(pn == 1)
 	{
 	    var ag = Snap("#ascii_table");
 	    
 	    var at = draw_ascii_table_for_seg(ag,segchar, patterns[0]);
-	    console.log(at);
+	    //console.log(at);
 
 	    ag.attr({viewBox:[0,0,at.w,at.h].join(' '),
     		      preserveAspectRatio: "none"
@@ -1182,10 +1101,10 @@ function print_page(page_number)
     <p>Messages are created locally on your machine and not transmitted anywhere. MIT licensed. Source can be found <a href="https://github.com/redfish64/paper_otp">here</a>.</p>
     <br><br>
     <table>
-    <tr><td colspan="4">
+    <!-- <tr><td colspan="4"> -->
     <!-- <input type="radio" name="mode" value="sixteenseg" checked="true" onclick="input_changed()">16 segment -->
     <!-- <input type="radio" name="mode" value="grid" onclick="input_changed()">Grid -->
-    </td></tr>
+    <!-- </td></tr> -->
     <tr>
     <td>Message
     <td width="50%"><textarea rows="5" placeholder="Enter message" autofocus="true" id="msg" onkeyup="input_changed()" onchange="input_changed()"></textarea>
@@ -1259,6 +1178,23 @@ Keep them in sync.
       </tr>
     </table>
 </div>
+
+    <div id="printareagrid">
+    <table>
+    <tr><td>
+	  <!-- WARNING, these values are copied above at
+var grid_data_pane_ratio = ....; 
+
+Keep them in sync.
+-->
+    <svg id="pg" width="7.00in" height="9.5in">
+    </td>
+    </tr>
+    <tr><td>Please put second page underneath first page, and view in front of light</td></tr>
+    </table>
+      </svg>
+    </div>
+    
     <div id="generatearea">
     <h3><div id="paranoia_perc"></div></h3>
     </div>
