@@ -132,7 +132,7 @@ var max_force_wrap = 100;
 // WARNING: this is taken from the svg width and height below:
 //	  <svg id="p" width="..." height="...">
 // Keep them in sync.
-var data_pane_ratio = 6.5568669528 / 5.8921695013;
+var data_pane_ratio = 6.5568669528 / 7.41323;
 
 
 
@@ -302,7 +302,7 @@ function create_seg_ascii_char(x,y,seg,ascii_index)
     return create_seg_bit_char(x,y,seg,seg.ascii_map[ascii_index]);
 }
 
-function draw_segchar(g,bits,chars_per_line,patterns, segchar)
+function draw_segchar(g,bits,chars_per_line,patterns, off_patterns, segchar)
 {
     if(bits.length == 0 || chars_per_line == 0)
 	return;
@@ -345,11 +345,12 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 
 	g.add(sc);
 
-	// var off_sc = g.path(off_path);
-	// off_sc.attr({ fill: "#FFFFFF", stroke: "#000000", strokeWidth: "1px"}).
-	//     attr("vector-effect", "non-scaling-stroke");
+	var off_pattern = off_patterns[pi];
 
-	// g.add(off_sc);
+	var off_sc = g.path(off_path);
+	off_sc.attr({ fill: off_pattern });
+
+	g.add(off_sc);
     }
 
     //console.log(path);
@@ -360,7 +361,7 @@ function draw_segchar(g,bits,chars_per_line,patterns, segchar)
 	     w: width,
 	     h: height
 	   };
-	     
+    
 }
 
 window.onload = function()
@@ -374,7 +375,7 @@ window.onload = function()
 
 
     update_print_buttons();
-//    console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
+    //    console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
 }
 
 function calc_rows(t, force_wrap)
@@ -665,8 +666,8 @@ function update_paranoia_percent()
 {
     //console.log("update_paranoia_percent",sjcl.random.getProgress(), sjcl.random.isReady());
     document.getElementById('paranoia_perc').innerHTML =
-			       "Move mouse around to generate random data... Paranoia "+
-			       (sjcl.random.getProgress()*100)+"%";
+	"Move mouse around to generate random data... Paranoia "+
+	(sjcl.random.getProgress()*100)+"%";
 
     //I know that a value of 2 corresponds to sjcl.random._NOT_READY, but according to:
     //https://github.com/bitwiseshiftleft/sjcl/wiki/Symmetric-Crypto
@@ -698,7 +699,7 @@ function generate_seed()
     else
 	finish_generate_seed();
 }
-    
+
 function create_otp_bits(length)
 {
     var bits = hex2bin(document.getElementById('otp').value,length);
@@ -786,7 +787,7 @@ function input_changed()
 	    var g1_bits = xor_bits(message.bits, otp_bits);
 	    //
 	    message.bits;
-	    var g2_bits = otp_bits;
+	    var g2_bits = not_bits(otp_bits);
 	    //console.log(g1.bits);
 	    
 	    redraw_grid(g1,g1_bits, message.width,
@@ -808,12 +809,14 @@ function input_changed()
 	    var otp_bits = create_otp_bits(message.bits.length);
 	    var g1_bits = xor_bits(message.bits, otp_bits);
 	    // message.bits;
-	    var g2_bits = otp_bits;//not_bits(otp_bits);
+	    var g2_bits = not_bits(otp_bits);
 	    //console.log(message);
 	    
 	    var g1_patterns = get_patterns(g1, g1_pat_color, 1);
+	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
+
 	    var sc1 = draw_segchar(g1,g1_bits, message.force_wrap,
-			   g1_patterns, segchar
+				   g1_patterns, g2_patterns, segchar
 				  );
 
 	    if(sc1)
@@ -822,9 +825,8 @@ function input_changed()
     			  });
 		
 		
-	    var g2_patterns = get_patterns(g2, g2_pat_color, 2);
 	    var sc2 = draw_segchar(g2,g2_bits, message.force_wrap,
-				   g2_patterns,segchar);
+				   g2_patterns, g1_patterns, segchar);
 	    if(sc2)
 		g2.attr({viewBox:[0,0,sc2.w,sc2.h].join(' '),
     		 	   //preserveAspectRatio: "none"
@@ -1082,7 +1084,7 @@ function print_page(page_number)
 	bits = xor_bits(message.bits, otp_bits);
     }
     else
-	bits = create_otp_bits(message.bits.length);
+	bits = not_bits(create_otp_bits(message.bits.length));
     
     if(mode == "grid")
     {
@@ -1097,15 +1099,19 @@ function print_page(page_number)
     {
 	g.clear();
 	
-	var patterns;
+	var patterns,off_patterns;
+	patterns = get_patterns(g, g1_pat_color, 1);
+	off_patterns = get_patterns(g, g1_pat_color, 2);
 	
-	if(page_number == 1)
-	    patterns = get_patterns(g, g1_pat_color, 1);
-	else
-	    patterns = get_patterns(g, g2_pat_color, 2);
+	if(page_number == 2)
+	{
+	    var t = off_patterns;
+	    off_patterns = patterns;
+	    patterns = t;
+	}
 
 	var sc = draw_segchar(g,bits, message.force_wrap,
-			      patterns, segchar
+			      patterns, off_patterns, segchar
 			     );
 	g.attr({viewBox:[0,0,sc.w,sc.h].join(' '),
     		//preserveAspectRatio: "none"
@@ -1214,10 +1220,12 @@ function print_page(page_number)
     <br>
     </td></tr></table>
     <div class="copyright">
+    <p>Written by Tim Engler with collaboration with Hib Engler.</p>
+    <p>
       <span>Copyright rareventure.com.</span>
       <span>JavaScript copyrights are included in the source.</span>
       <span>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT 
-	LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. </span>
+	LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. </span></p>
     </div>
     </div>
     <div id="printarea">
@@ -1229,7 +1237,7 @@ var data_pane_ratio = ....;
 
 Keep them in sync.
 -->
-	  <svg id="p" width="6.5568669528in" height="5.89216950163in">
+	  <svg id="p" width="6.5568669528in" height="7.41323in">
 	  </svg>
 	</td>
 	<td rowspan="2">
@@ -1242,8 +1250,8 @@ Keep them in sync.
       <tr>
     <td>
     <!-- replace_in_file:block:start:howto.svg -->
-	  <svg id="legend_box" width="6.5568669528in" height="3.6078304987in">
-	  <ellipse cx="3.2784334764in" cy="1.8039152493in" rx="3.2784334764in" ry="1.8039152493in"
+	  <svg id="legend_box" width="6.5568669528in" height="2.08677in">
+	  <ellipse cx="3.2784334764in" cy="1.043385in" rx="3.2784334764in" ry="1.043385in"
 	  	   style="fill:none;stroke:orange;stroke-width:2" />
 	  </svg>
     <!-- replace_in_file:block:end -->
