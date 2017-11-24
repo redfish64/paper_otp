@@ -3256,9 +3256,9 @@ console_font_5x8 = [
     0x00,  /* 00000 */
     0x00,  /* 00000 */
     0x60,  /* 01100 */
+    0xb0,  /* 10110 */
     0x90,  /* 10010 */
-    0x90,  /* 10010 */
-    0x90,  /* 10010 */
+    0xd0,  /* 11010 */
     0x60,  /* 01100 */
     0x00,  /* 00000 */
 
@@ -3604,8 +3604,8 @@ console_font_5x8 = [
     0x00,  /* 00000 */
     0x00,  /* 00000 */
     0x90,  /* 10010 */
-    0x90,  /* 10010 */
     0xF0,  /* 11110 */
+    0x90,  /* 10010 */
     0x90,  /* 10010 */
     0x90,  /* 10010 */
     0x00,  /* 00000 */
@@ -6405,6 +6405,31 @@ function draw_segchar(g,bits,chars_per_line,patterns, off_patterns, segchar)
     
 }
 
+function test5x8()
+{
+    console.log("Testing 5x8!");
+    for(var i=0; i < console_font_5x8.length; i += 8)
+    {
+	for(var j=i+8; j < console_font_5x8.length; j += 8)
+	{
+	    var diff = 0;
+	    for(var k=0;k<8; k++)
+	    {
+		if(console_font_5x8[i+k] != console_font_5x8[j+k])
+		{
+		    diff = 1;
+		    break;
+		}
+	    }
+	    if(diff == 0)
+	    {
+		console.log("Chars the same! "+(i/8)+","+(j/8));
+	    }
+	}
+    }
+}
+
+			     
 window.onload = function()
 {
     sjcl.random.setDefaultParanoia(10);
@@ -6415,6 +6440,7 @@ window.onload = function()
     g2 = Snap("#s2");
 
     input_changed();
+    test5x8();
     //console.log("whatisready?",(new sjcl.prng(10)).getProgress(10));
 }
 
